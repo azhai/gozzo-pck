@@ -1,0 +1,15 @@
+.*
+*/*.so
+*/*.so.*
+*.bak
+*.dat
+*.exe
+*.log
+*.sublime-project
+*.sublime-workspace
+*.tmp
+*.txt
+*.upx
+*.vscode
+*.zip
+phone/data/phones.csv
