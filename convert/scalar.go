@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 
-	"github.com/azhai/gozzo-pck/tool"
+	"github.com/azhai/gozzo-utils/common"
 )
 
 type IConvert interface {
@@ -96,7 +96,7 @@ func (n *Uint64) Encode() []byte {
 
 func (n *Uint64) Decode(chunk []byte) error {
 	if chunk != nil {
-		chunk = tool.ResizeBytes(chunk, true, 8)
+		chunk = common.ResizeBytes(chunk, true, 8)
 		n.Data = binary.BigEndian.Uint64(chunk)
 	}
 	return nil
@@ -123,7 +123,7 @@ func (n *Uint32) Encode() []byte {
 
 func (n *Uint32) Decode(chunk []byte) error {
 	if chunk != nil {
-		chunk = tool.ResizeBytes(chunk, true, 4)
+		chunk = common.ResizeBytes(chunk, true, 4)
 		n.Data = binary.BigEndian.Uint32(chunk)
 	}
 	return nil
@@ -143,7 +143,7 @@ type Uint24 struct {
 }
 
 func (n *Uint24) Encode() []byte {
-	return tool.ResizeBytes(n.Uint32.Encode(), true, 3)
+	return common.ResizeBytes(n.Uint32.Encode(), true, 3)
 }
 
 // 无符号Word
@@ -159,7 +159,7 @@ func (n *Uint16) Encode() []byte {
 
 func (n *Uint16) Decode(chunk []byte) error {
 	if chunk != nil {
-		chunk = tool.ResizeBytes(chunk, true, 2)
+		chunk = common.ResizeBytes(chunk, true, 2)
 		n.Data = binary.BigEndian.Uint16(chunk)
 	}
 	return nil

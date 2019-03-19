@@ -42,7 +42,7 @@ func MatchChunk(chunk []byte, fm *FieldMatcher) (cmd string) {
 
 // 测试切割出完整的包
 func TestSplit(t *testing.T) {
-	tm := CreateSplitMatcher()
+	tm := NewSplitMatcher([]byte("*"), []byte("*"))
 	output, err := SplitTestData(tm.Spliter)
 	if err != nil {
 		t.Error(err)

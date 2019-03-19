@@ -1,57 +1,4 @@
-package tool
-
-import (
-	"bytes"
-)
-
-/* 掩码Enum
-type Weekday = uint8
-const (
-	Sunday Weekday = uint8(iota)
-	Monday
-	Tuesday
-	Wednesday
-	Thursday
-	Friday
-	Saturday
-)
-
-type Property = uint32
-const (
-	Bit0 Property = 1 << iota
-	Bit1
-	_
-	Bit3
-)
-*/
-
-// 补充空字节
-func ExtendBytes(data []byte, isLeft bool, size int) []byte {
-	if size <= 0 {
-		return data
-	}
-	padding := bytes.Repeat([]byte{0x00}, size)
-	if isLeft {
-		return append(padding, data...)
-	} else {
-		return append(data, padding...)
-	}
-}
-
-// 调整长度
-func ResizeBytes(data []byte, isLeft bool, n int) []byte {
-	size := len(data) - n // 多余长度
-	if size == 0 {
-		return data
-	} else if size < 0 {
-		return ExtendBytes(data, isLeft, 0-size)
-	}
-	if isLeft {
-		return data[size:]
-	} else {
-		return data[:size]
-	}
-}
+package common
 
 type WalkFunc func(item interface{}) error
 type MapFunc func(item interface{}) (interface{}, error)
@@ -90,4 +37,32 @@ func ArrayReduce(arr IArray, f ReduceFunc, res interface{}) (interface{}, error)
 		res, err = f(res, item)
 	}
 	return res, err
+}
+
+// 获取Slice的起止index
+func GetStartStop(offset, limit, count int) (int, int) {
+	if count < 0 || offset >= count || offset < 0-count || limit < 0-count {
+		return -1, -1 // 参数不合理
+	}
+	if limit >= 0 && limit > count {
+		limit = count
+	}
+	if offset < 0 {
+		if limit < 0 {
+			limit = limit - offset
+			if limit <= 0 {
+				return -1, -1
+			}
+		}
+		offset = count + offset
+	}
+	start, stop := offset, offset+limit
+	if limit <= 0 {
+		stop = count + limit
+	}
+	if stop <= start {
+		return start, start
+	} else {
+		return start, stop
+	}
 }
