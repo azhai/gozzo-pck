@@ -7,93 +7,114 @@ import (
 )
 
 // 判断匹配开头或结尾的方法
-type MatchBytesFunc func(data []byte) (int, int)
+type MatchFunc func(data []byte) (int, int)
 
-// 根据开头几个字节分割
-func SplitByHead(matchHead MatchBytesFunc, sameTail bool) bufio.SplitFunc {
-	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		if atEOF {
-			if advance = len(data); advance == 0 {
-				return 0, nil, nil // 终止
-			}
+func MatchTwice(match MatchFunc, data []byte, atEOF bool) (int, int, int) {
+	var (
+		advance = -1
+		i, m    int
+	)
+	if atEOF && len(data) == 0 {
+		return advance, 0, 0 // 终止
+	}
+	if i, m = match(data); i >= 0 {
+		advance = i
+		if j, _ := match(data[i+m:]); j >= 0 {
+			advance += j + m
 		}
-		if i, n := matchHead(data); i >= 0 {
-			if j, _ := matchHead(data[i+n:]); j >= 0 {
-				// finds >= 2
-				advance = i + n + j
-				if sameTail {
-					advance += n
-				}
-				token = data[i:advance]
-				return advance, token, nil
-			} else if sameTail == false {
-				// finds = 1
-				if atEOF {
-					token = data[i:]
-				} else {
-					advance = i
-				}
-				return advance, token, nil
-			}
+	}
+	return advance, i, m
+}
+
+// 根据相同的开头和结尾分割
+func SplitBoth(matchBoth MatchFunc) bufio.SplitFunc {
+	return func(data []byte, atEOF bool) (int, []byte, error) {
+		advance, i, m := MatchTwice(matchBoth, data, atEOF)
+		if advance < 0 {
+			return 0, nil, nil // 终止(atEOF=true)或请求更多数据
 		}
-		// finds = 0
-		return advance, nil, nil
+		var token []byte
+		if advance > i {
+			advance += m
+			token = data[i:advance]
+		}
+		return advance, token, nil
 	}
 }
 
-// 根据开头和结尾几个字节分割
-func SplitBetween(matchHead, matchTail MatchBytesFunc) bufio.SplitFunc {
-	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		split := SplitByHead(matchHead, false)
-		advance, token, err = split(data, atEOF)
-		if len(token) > 0 {
-			if i, n := matchTail(token); i >= 0 {
-				token = token[:i+n]
-			} else {
-				token = nil
-			}
+// 根据不同的开头和结尾分割
+func SplitBetween(matchStart, matchEnd MatchFunc) bufio.SplitFunc {
+	return func(data []byte, atEOF bool) (int, []byte, error) {
+		advance, i, m := MatchTwice(matchStart, data, atEOF)
+		if advance < 0 {
+			return 0, nil, nil // 终止(atEOF=true)或请求更多数据
 		}
-		return
+		var token []byte
+		if advance > i {
+			token = data[i:advance]
+		} else {
+			advance = len(data)
+			token = data[i:]
+		}
+		if j, n := matchEnd(token[m:]); j >= 0 {
+			token = token[:m+j+n]
+		} else {
+			token = nil
+		}
+		return advance, token, nil
 	}
 }
 
 // 按前后标记拆包
 type SplitMatcher struct {
-	MatchStart MatchBytesFunc
-	MatchEnd   MatchBytesFunc
+	StartToken []byte
+	EndToken   []byte
 	Spliter    bufio.SplitFunc
 }
 
 func NewSplitMatcher(start, end []byte) *SplitMatcher {
-	m := new(SplitMatcher)
-	m.MatchStart = func(data []byte) (int, int) {
-		return bytes.Index(data, start), len(start)
-	}
-	if bytes.Compare(start, end) == 0 { // 相同
-		m.Spliter = SplitByHead(m.MatchStart, true)
-	} else {
-		m.MatchEnd = func(data []byte) (int, int) {
-			return bytes.LastIndex(data, end), len(end)
+	return &SplitMatcher{StartToken: start, EndToken: end}
+}
+
+func (m *SplitMatcher) GetSpliter() bufio.SplitFunc {
+	if m.Spliter == nil {
+		MatchStart := func(data []byte) (int, int) {
+			return bytes.Index(data, m.StartToken), len(m.StartToken)
 		}
-		m.Spliter = SplitBetween(m.MatchStart, m.MatchEnd)
+		if bytes.Compare(m.StartToken, m.EndToken) == 0 { // 相同
+			m.Spliter = SplitBoth(MatchStart)
+		} else {
+			MatchEnd := func(data []byte) (int, int) {
+				return bytes.LastIndex(data, m.EndToken), len(m.EndToken)
+			}
+			m.Spliter = SplitBetween(MatchStart, MatchEnd)
+		}
 	}
-	return m
+	return m.Spliter
 }
 
 //解析字节流
-func SplitStream(reader io.Reader, spliter bufio.SplitFunc) (result [][]byte, err error) {
-	scanner := bufio.NewScanner(reader)
-	scanner.Split(spliter)
-	defer func() {
-		var ok bool
-		if err, ok = recover().(error); !ok || err == nil {
-			err = scanner.Err()
-		}
-	}()
+func (m *SplitMatcher) SplitStream(outch chan<- []byte, rd io.Reader) error {
+	scanner := bufio.NewScanner(rd)
+	scanner.Split(m.GetSpliter())
 	for scanner.Scan() {
 		if chunk := scanner.Bytes(); chunk != nil {
-			result = append(result, chunk)
+			outch <- chunk
 		}
 	}
-	return
+	return scanner.Err()
+}
+
+//解析二进制数据
+func (m *SplitMatcher) SplitBuffer(input []byte) ([][]byte, error) {
+	var output [][]byte
+	rd := bytes.NewReader(input)
+	scanner := bufio.NewScanner(rd)
+	scanner.Split(m.GetSpliter())
+	for scanner.Scan() {
+		if chunk := scanner.Bytes(); chunk != nil {
+			output = append(output, chunk)
+		}
+	}
+	return output, scanner.Err()
 }

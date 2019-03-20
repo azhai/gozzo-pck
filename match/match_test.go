@@ -1,7 +1,6 @@
 package match
 
 import (
-	"bufio"
 	"bytes"
 	"strconv"
 	"testing"
@@ -10,12 +9,7 @@ import (
 var data = []byte("\nvalue\r\n" +
 	"*3\r\n$3\r\nSET\r\n$1\r\na\r\n$1\r\n1\r\n" +
 	"*4\r\n$4\r\nHSET\r\n$2\r\nxy\r\n$1\r\nz\r\n$1\r\n2\r\n" +
-	"*3\r\n$3\r\nSET\r\n$3\r\nkey\r\n$5\r\nvalue\r\n" +
-	"*4\r\n$4\r\nHSET\r")
-
-func CreateSplitMatcher() *SplitMatcher {
-	return NewSplitMatcher([]byte("*"), []byte("\r\n"))
-}
+	"*3\r\n$3\r\nSET\r\n$3\r\nkey\r\n$5\r")
 
 func CreateFieldMatcher(chunk []byte) *FieldMatcher {
 	// 举例：*3\r\n$3\r\nSET\r\n$3\r\nkey\r\n$5\r\nvalue\r\n
@@ -27,11 +21,6 @@ func CreateFieldMatcher(chunk []byte) *FieldMatcher {
 	return m
 }
 
-func SplitTestData(split bufio.SplitFunc) ([][]byte, error) {
-	r := bytes.NewReader(data)
-	return SplitStream(r, split)
-}
-
 func MatchChunk(chunk []byte, fm *FieldMatcher) (cmd string) {
 	fs, _ := MatchHead(chunk, fm.Sequence)
 	if len(fs) >= 7 {
@@ -41,23 +30,27 @@ func MatchChunk(chunk []byte, fm *FieldMatcher) (cmd string) {
 }
 
 // 测试切割出完整的包
-func TestSplit(t *testing.T) {
-	tm := NewSplitMatcher([]byte("*"), []byte("*"))
-	output, err := SplitTestData(tm.Spliter)
+func TestInclusio(t *testing.T) {
+	outch := make(chan []byte)
+	go func() {
+		for chunk := range outch {
+			t.Log(strconv.Quote(string(chunk)))
+		}
+	}()
+	sp := NewSplitMatcher([]byte("*"), []byte("*"))
+	err := sp.SplitStream(outch, bytes.NewReader(data))
 	if err != nil {
 		t.Error(err)
-	}
-	for _, chunk := range output {
-		t.Log(strconv.Quote(string(chunk)))
 	}
 }
 
 // 测试切割出完整的包
 func TestBetween(t *testing.T) {
-	tm := CreateSplitMatcher()
-	output, err := SplitTestData(tm.Spliter)
+	sp := NewSplitMatcher([]byte("*"), []byte("\r\n"))
+	output, err := sp.SplitBuffer(data)
 	if err != nil {
 		t.Error(err)
+		return
 	}
 	for _, chunk := range output {
 		t.Log(strconv.Quote(string(chunk)))
@@ -66,52 +59,40 @@ func TestBetween(t *testing.T) {
 
 // 测试切割出完整的包
 func TestMatch(t *testing.T) {
-	var fm *FieldMatcher
-	tm := CreateSplitMatcher()
-	output, _ := SplitTestData(tm.Spliter)
+	sp := NewSplitMatcher([]byte("*"), []byte("\r\n"))
+	output, err := sp.SplitBuffer(data)
+	if err != nil {
+		t.Error(err)
+		return
+	}
 	for _, chunk := range output {
-		if fm == nil {
-			fm = CreateFieldMatcher(chunk)
-		}
+		fm := CreateFieldMatcher(chunk)
 		cmd := MatchChunk(chunk, fm)
 		t.Log(cmd)
 	}
 }
 
-func BenchmarkSplit1(b *testing.B) {
-	tm := CreateSplitMatcher()
-	r := bytes.NewBuffer(data)
+func BenchmarkSplit(b *testing.B) {
+	sp := NewSplitMatcher([]byte("*"), []byte("\r\n"))
 	for i := 0; i < b.N; i++ {
-		SplitStream(r, tm.Spliter)
-		r.Reset()
-	}
-}
-
-func BenchmarkSplit2(b *testing.B) {
-	tm := CreateSplitMatcher()
-	r := bytes.NewReader(data)
-	for i := 0; i < b.N; i++ {
-		SplitStream(r, tm.Spliter)
-	}
-}
-
-func BenchmarkSplit3(b *testing.B) {
-	tm := CreateSplitMatcher()
-	r := bytes.NewReader(data)
-	for i := 0; i < b.N; i++ {
-		SplitStream(r, tm.Spliter)
+		sp.SplitBuffer(data)
 	}
 }
 
 func BenchmarkMatch(b *testing.B) {
-	var fm *FieldMatcher
-	tm := CreateSplitMatcher()
-	output, _ := SplitTestData(tm.Spliter)
-	size := len(output)
-	if size > 0 {
-		fm = CreateFieldMatcher(output[0])
+	var fms []*FieldMatcher
+	sp := NewSplitMatcher([]byte("*"), []byte("\r\n"))
+	output, err := sp.SplitBuffer(data)
+	if err != nil {
+		b.Error(err)
+		return
 	}
-	for i := 0; i < b.N; i += size {
-		MatchChunk(output[i%size], fm)
+	for _, chunk := range output {
+		fms = append(fms, CreateFieldMatcher(chunk))
+	}
+	for i := 0; i < b.N; i += len(fms) {
+		for j, chunk := range output {
+			MatchChunk(chunk, fms[j])
+		}
 	}
 }
