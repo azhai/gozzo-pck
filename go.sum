@@ -1,5 +1,5 @@
-github.com/azhai/gozzo-utils v0.1.3 h1:gxbiJrti8ibYCT9aqQES8XsdbBZESzkFqGGyYUBoqqA=
-github.com/azhai/gozzo-utils v0.1.3/go.mod h1:K3c7V4jJErZ631nN2e7OFkzTZ4BlJPBcS4PScvHTwU0=
+github.com/azhai/gozzo-utils v0.1.6 h1:Gsva6O7ECIqSb/DQhiNFL1puWjGfSRY0mdectYCqhyI=
+github.com/azhai/gozzo-utils v0.1.6/go.mod h1:K3c7V4jJErZ631nN2e7OFkzTZ4BlJPBcS4PScvHTwU0=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/golang/sys v0.0.0-20190321052220-f7bb7a8bee54/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 github.com/gomodule/redigo v2.0.0+incompatible/go.mod h1:B4C85qUVwatsJoIUNIfCRsp7qO0iAmpGFZ4EELWSbC4=
