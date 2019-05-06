@@ -2,7 +2,6 @@
 */*.so
 */*.so.*
 *.bak
-*.dat
 *.exe
 *.log
 *.sublime-project
@@ -11,5 +10,4 @@
 *.txt
 *.upx
 *.vscode
-*.zip
-phone/data/phones.csv
+tests/
