@@ -15,16 +15,17 @@ func CreateMatcher(chunk []byte) *match.FieldMatcher {
     index := bytes.Index(chunk[offset:], []byte("\r\n"))
     length, _ := strconv.Atoi(string(chunk[offset+1:offset+index]))
     m := match.NewFieldMatcher()
-    m.AddFixeds([]int{1, offset - 3, 2, 1, index - 1, 2, length, 2})
+	m.AddFixeds([]int{1, offset - 3, 2, 1, index - 1, 2})
+	m.AddField("cmd", match.NewField(size, false))
     return m
 }
 
 fun main() {
     chunk := []byte("*3\r\n$3\r\nSET\r\n$3\r\nkey\r\n$5\r\nvalue\r\n")
     matcher := CreateMatcher(chunk)
-    pics, err := match.MatchHead(chunk, matcher.Sequence)
-    if err == nil && len(pics) >= 7 {
-        fmt.Println("Command is ", string(pics[6]))
+    data := matcher.Match(chunk, true)
+    if cmd, ok := data["cmd"]; ok {
+        fmt.Println("Command is ", string(cmd))
     }
 }
 ```

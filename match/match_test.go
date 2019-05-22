@@ -15,16 +15,17 @@ func CreateFieldMatcher(chunk []byte) *FieldMatcher {
 	// 举例：*3\r\n$3\r\nSET\r\n$3\r\nkey\r\n$5\r\nvalue\r\n
 	offset := bytes.IndexByte(chunk, byte('$'))
 	index := bytes.Index(chunk[offset:], []byte("\r\n"))
-	length, _ := strconv.Atoi(string(chunk[offset+1 : offset+index]))
+	size, _ := strconv.Atoi(string(chunk[offset+1 : offset+index]))
 	m := NewFieldMatcher()
-	m.AddFixeds([]int{1, offset - 3, 2, 1, index - 1, 2, length, 2})
+	m.AddFixeds([]int{1, offset - 3, 2, 1, index - 1, 2})
+	m.AddField("cmd", NewField(size, false))
 	return m
 }
 
 func MatchChunk(chunk []byte, fm *FieldMatcher) (cmd string) {
-	fs, _ := MatchHead(chunk, fm.Sequence)
-	if len(fs) >= 7 {
-		cmd = string(fs[6])
+	data := fm.Match(chunk, true)
+	if len(data) >= 7 {
+		cmd = string(data["cmd"])
 	}
 	return
 }
