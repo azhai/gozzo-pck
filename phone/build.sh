@@ -5,7 +5,7 @@ GOOS=$(uname -s | tr [A-Z] [a-z])
 APPNAME="phone"
 RELEASE="-s -w"
 if [ "$GOOS" == "darwin" ]; then
-    GOBUILD="/usr/local/bin/go build -mod=.vendor"
+    GOBUILD="/usr/local/bin/go build -mod=vendor"
     UPX=""
 else
     GOBUILD="/usr/bin/go build -mod=vendor"

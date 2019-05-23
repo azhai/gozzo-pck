@@ -20,7 +20,7 @@ func GetT808Body(data string) (chunk []byte) {
 // 测试JT/T808协议
 func TestObject(t *testing.T) {
 	data := "7E01020006014530399195003F717361757468597E"
-	p := new(Object).Init()
+	p := NewObject()
 	p.AddHexStrField("code", 2)
 	p.AddUint16Field("props")
 	p.AddHexStrField("mobile", 6)

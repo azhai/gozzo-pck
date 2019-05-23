@@ -1,16 +1,24 @@
 package convert
 
-import "github.com/azhai/gozzo-pck/match"
+import (
+	"sort"
+
+	"github.com/azhai/gozzo-pck/match"
+)
 
 // 对象
 type Object struct {
+	current  []string
 	children map[string]IConvert
 	Matcher  *match.FieldMatcher
 }
 
-func (p *Object) Init() *Object {
-	p.children = make(map[string]IConvert)
-	p.Matcher = match.NewFieldMatcher()
+func NewObject() *Object {
+	p := &Object{
+		Matcher: match.NewFieldMatcher(),
+		children: make(map[string]IConvert),
+	}
+	p.children["rest"] = new(Bytes)
 	return p
 }
 
@@ -28,12 +36,15 @@ func (p *Object) Encode() []byte {
 }
 
 func (p *Object) Decode(chunk []byte) (err error) {
-	data := p.Matcher.Match(chunk, false)
+	p.current = make([]string, 0)
+	data := p.Matcher.Match(chunk, true)
 	for name, value := range data {
 		if child, ok := p.children[name]; ok {
+			p.current = append(p.current, name)
 			err = child.Decode(value)
 		}
 	}
+	sort.Strings(p.current)
 	return
 }
 
@@ -49,18 +60,21 @@ func (p *Object) SetData(data interface{}) {
 
 func (p *Object) GetTable() map[string]interface{} {
 	result := make(map[string]interface{})
-	for name, conv := range p.children {
-		result[name] = conv.GetData()
+	for _, name := range p.current {
+		result[name] = p.children[name].GetData()
 	}
 	return result
 }
 
 func (p *Object) SetTable(table map[string]interface{}) {
+	p.current = make([]string, 0)
 	for name, conv := range p.children {
 		if data, ok := table[name]; ok {
+			p.current = append(p.current, name)
 			conv.SetData(data)
 		}
 	}
+	sort.Strings(p.current)
 }
 
 func (p *Object) AddSpanField(size int) *match.Field {
