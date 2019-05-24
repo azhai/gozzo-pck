@@ -36,12 +36,15 @@ type KeyPair struct {
 type DatHeader struct {
 	KeySize   int
 	PositSize int
-	convert.Object
+	*convert.Object
 }
 
 func NewDatHeader(keySize, positSize int) *DatHeader {
-	p := &DatHeader{KeySize: keySize, PositSize: positSize}
-	p.Init()
+	p := &DatHeader{
+		KeySize: keySize,
+		PositSize: positSize,
+		Object: convert.NewObject(),
+	}
 	p.AddUint32Field("idxBegin") // 第一个索引开始位置
 	p.AddUint32Field("idxEnd")   // 最后一个索引结束位置
 	p.AddUint32Field("keyCount")
@@ -66,12 +69,11 @@ func (h *DatHeader) GetSizeProps(itemSize int) uint16 {
 }
 
 type DatIndex struct {
-	convert.Object
+	*convert.Object
 }
 
 func NewDatIndex(keySize, positSize int) *DatIndex {
-	p := &DatIndex{}
-	p.Init()
+	p := &DatIndex{Object: convert.NewObject()}
 	p.AddBytesField("key", keySize)
 	if positSize == 2 {
 		p.AddUint16Field("pos")

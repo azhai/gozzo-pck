@@ -17,7 +17,7 @@ func CreateFieldMatcher(chunk []byte) *FieldMatcher {
 	index := bytes.Index(chunk[offset:], []byte("\r\n"))
 	size, _ := strconv.Atoi(string(chunk[offset+1 : offset+index]))
 	m := NewFieldMatcher()
-	m.AddFixeds([]int{1, offset - 3, 2, 1, index - 1, 2})
+	m.AddFixeds([]int{1, offset - 3, 2, 1, index - 1, 2}, nil)
 	m.AddField("cmd", NewField(size, false))
 	return m
 }

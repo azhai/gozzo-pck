@@ -27,7 +27,7 @@ func NewField(size int, optional bool) *Field {
 }
 
 //找出段的正向起止位置，offset为修正值，只对同符号数据起作用
-func (field *Field) GetRange(offset, size int) (int, int) {
+func (field *Field) GetRange(offset int) (int, int) {
 	var (
 		start = field.Start
 		stop  = field.Stop
@@ -38,11 +38,9 @@ func (field *Field) GetRange(offset, size int) (int, int) {
 	if stop*offset >= 0 { //同符号时修正
 		stop += offset
 	}
-	if stop <= 0 {
-		stop += size
-	}
 	return start, stop
 }
+
 
 //分段匹配
 type FieldMatcher struct {
@@ -59,16 +57,34 @@ func NewFieldMatcher() *FieldMatcher {
 	}
 }
 
-func (m *FieldMatcher) AddFixeds(sizes []int) {
-	if len(sizes) > 0 {
-		for _, size := range sizes {
-			m.AddField("", NewField(size, false))
+// 添加一些固定长度的字段，size<0的字段从尾部向前添加
+func (m *FieldMatcher) AddFixeds(sizes []int, names []string) {
+	if len(sizes) == 0 {
+		return
+	}
+	nameCount := len(names)
+	seqCount := len(m.Sequence)
+	revCount := len(m.Reverse) + 1
+	for i, size := range sizes {
+		var name string
+		if i < nameCount {
+			name = names[i]
+		} else if size >= 0 {
+			name = fmt.Sprintf("+%d", seqCount)
+			seqCount++
+		} else {
+			name = fmt.Sprintf("-%d", revCount)
+			revCount++
 		}
+		m.AddField(name, NewField(size, false))
 	}
 }
 
-//添加开头的段定义
+//添加开头的段定义，要求field.Start >= 0
 func (m *FieldMatcher) AddField(name string, field *Field) *Field {
+	if field.Start < 0 {
+		return m.AddRevField(name, field)
+	}
 	if name == "" || name == "rest" {
 		name = fmt.Sprintf("+%d", len(m.Sequence))
 	}
@@ -84,10 +100,13 @@ func (m *FieldMatcher) AddField(name string, field *Field) *Field {
 	return field
 }
 
-//添加结尾的段定义
+//添加结尾的段定义，要求field.Start < 0
 func (m *FieldMatcher) AddRevField(name string, field *Field) *Field {
+	if field.Start >= 0 {
+		return m.AddField(name, field)
+	}
 	if name == "" || name == "rest" {
-		name = fmt.Sprintf("-%d", len(m.Sequence)+1)
+		name = fmt.Sprintf("-%d", len(m.Reverse)+1)
 	}
 	field.Start += m.rest.Stop
 	if field.Size > 0 {
@@ -109,28 +128,22 @@ func (m *FieldMatcher) GetLeastSize() (int, int) {
 	return len(m.fields), least
 }
 
-// 直接定义并读取开头几个固定段，类似Erlang中的位匹配
+// 按字节位置匹配
 func (m *FieldMatcher) Match(chunk []byte, withRest bool) map[string][]byte {
 	var data = make(map[string][]byte)
 	start, stop, size := 0, 0, len(chunk)
 	for name, field := range m.fields {
-		start, stop = field.GetRange(0, size) // 一定不为负
-		if start >= 0 && stop <= size {
-			data[name] = chunk[start:stop]
-		} else {
-			data[name] = nil
-		}
+		start, stop = field.GetRange(0) // 一定不为负
+		data[name] = common.GetSlice(chunk, start, stop, size)
 	}
 	if withRest {
-		data["rest"] = nil
-		start, stop = m.rest.GetRange(0, size)
-		if start >= 0 && stop <= size {
-			data["rest"] = chunk[start:stop]
-		}
+		start, stop = m.rest.GetRange(0) // 一定不为负
+		data["rest"] = common.GetSlice(chunk, start, stop, size)
 	}
 	return data
 }
 
+// 放到对应位置组装
 func (m *FieldMatcher) Build(data map[string][]byte) []byte {
 	var (
 		field        *Field

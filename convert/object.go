@@ -22,7 +22,7 @@ func NewObject() *Object {
 	return p
 }
 
-func (p *Object) GetConvert(name string) (IConvert, bool) {
+func (p *Object) GetChild(name string) (IConvert, bool) {
 	child, ok := p.children[name]
 	return child, ok
 }
@@ -49,7 +49,7 @@ func (p *Object) Decode(chunk []byte) (err error) {
 }
 
 func (p *Object) GetData() interface{} {
-	return p.GetTable()
+	return p.GetTable(nil)
 }
 
 func (p *Object) SetData(data interface{}) {
@@ -58,9 +58,12 @@ func (p *Object) SetData(data interface{}) {
 	}
 }
 
-func (p *Object) GetTable() map[string]interface{} {
+func (p *Object) GetTable(names []string) map[string]interface{} {
 	result := make(map[string]interface{})
-	for _, name := range p.current {
+	if names == nil {
+		names = p.current
+	}
+	for _, name := range names {
 		result[name] = p.children[name].GetData()
 	}
 	return result
