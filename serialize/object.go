@@ -100,6 +100,10 @@ func (t *Object) AddHexStrField(name string, size int) *match.Field {
 	return t.AddChild(new(HexStr), name, size, false)
 }
 
+func (t *Object) AddUintField(name string, size int, rev bool) *match.Field {
+	return t.AddChild(&Uint{Size:size}, name, size, rev)
+}
+
 func (t *Object) AddUint64Field(name string, rev bool) *match.Field {
 	return t.AddChild(new(Uint64), name, 8, rev)
 }

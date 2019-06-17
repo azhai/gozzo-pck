@@ -5,13 +5,12 @@ import (
 	"io"
 	"sort"
 
-	"github.com/azhai/gozzo-pck/convert"
+	"github.com/azhai/gozzo-pck/serialize"
 )
 
 func GetAddrUint32(addr []byte) uint32 {
-	n := new(convert.Uint32)
-	n.Decode(addr)
-	return n.Data
+	obj := serialize.Uint32(0)
+	return obj.Decode(addr).(uint32)
 }
 
 type ReaderIndex interface {
@@ -103,7 +102,7 @@ func NewFinder(reader io.ReaderAt, keySize, positSize int) (f *Finder, err error
 	if _, err = f.reader.ReadAt(headData, 0); err != nil {
 		return
 	}
-	if err = f.Header.Decode(headData); err != nil {
+	if err = f.Header.Unserialize(headData, &f.Header); err != nil {
 		return
 	}
 	idxBegin, idxEnd := f.Header.GetIndexRange()

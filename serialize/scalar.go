@@ -79,6 +79,26 @@ func (n Uint64) Decode(chunk []byte) interface{} {
 	return uint64(0)
 }
 
+// 无符号整数
+type Uint struct {
+	Size int
+	uint64
+}
+
+func (n Uint) Encode(v interface{}) []byte {
+	chunk := make([]byte, 8)
+	binary.BigEndian.PutUint64(chunk, v.(uint64))
+	return common.ResizeBytes(chunk, true, n.Size)
+}
+
+func (n Uint) Decode(chunk []byte) interface{} {
+	if chunk != nil {
+		chunk = common.ExtendBytes(chunk, true, n.Size)
+		return binary.BigEndian.Uint64(chunk)
+	}
+	return uint64(0)
+}
+
 // 无符号Double Word
 type Uint32 uint32
 
@@ -107,8 +127,7 @@ func (n Uint24) Encode(v interface{}) []byte {
 
 func (n Uint24) Decode(chunk []byte) interface{} {
 	if chunk != nil {
-		chunk = common.ResizeBytes(chunk, true, 4)
-		chunk[0] = 0x00 // 去掉最前面一个字节
+		chunk = common.ExtendBytes(chunk, true, 4)
 		return binary.BigEndian.Uint32(chunk)
 	}
 	return uint32(0)

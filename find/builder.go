@@ -2,11 +2,10 @@ package find
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"time"
 
-	"github.com/azhai/gozzo-pck/convert"
+	"github.com/azhai/gozzo-pck/serialize"
 )
 
 // 格式说明
@@ -36,32 +35,39 @@ type KeyPair struct {
 type DatHeader struct {
 	KeySize   int
 	PositSize int
-	*convert.Object
+	IdxBegin  uint32
+	IdxEnd  uint32
+	KeyCount  uint32
+	SizeProps uint16
+	Version string
+	*serialize.Object
 }
 
 func NewDatHeader(keySize, positSize int) *DatHeader {
 	p := &DatHeader{
 		KeySize: keySize,
 		PositSize: positSize,
-		Object: convert.NewObject(),
+		Object: serialize.NewObject(),
 	}
-	p.AddUint32Field("idxBegin") // 第一个索引开始位置
-	p.AddUint32Field("idxEnd")   // 最后一个索引结束位置
-	p.AddUint32Field("keyCount")
+	p.AddUint32Field("idxBegin", false) // 第一个索引开始位置
+	p.AddUint32Field("idxEnd", false)   // 最后一个索引结束位置
+	p.AddUint32Field("keyCount", false)
 	// 0-7 ItemSize: 0（变长）~ 256
 	// 8-12 KeySize: 1 ~ 31
 	// 13-15 PositSize: 2 ~ 4
-	p.AddUint16Field("sizeProps")
-	p.AddHexStrField("version", 8) // 4字节
+	p.AddUint16Field("sizeProps", false)
+	p.AddHexStrField("version", 4) // 4字节
 	return p
 }
 
 func (h *DatHeader) GetIndexRange() (int, int) {
-	return int(h.GetUint32("idxBegin")), int(h.GetUint32("idxEnd"))
+	return int(h.IdxBegin), int(h.IdxEnd)
 }
 
 func (h *DatHeader) GetHeaderSize() int {
 	return FIX_BYTES*3 + 2 + VER_BYTES
+	_, size := h.Matcher.GetLeastSize()
+	return size
 }
 
 func (h *DatHeader) GetSizeProps(itemSize int) uint16 {
@@ -69,19 +75,15 @@ func (h *DatHeader) GetSizeProps(itemSize int) uint16 {
 }
 
 type DatIndex struct {
-	*convert.Object
+	Key []byte
+	Pos uint64
+	*serialize.Object
 }
 
 func NewDatIndex(keySize, positSize int) *DatIndex {
-	p := &DatIndex{Object: convert.NewObject()}
+	p := &DatIndex{Object: serialize.NewObject()}
 	p.AddBytesField("key", keySize)
-	if positSize == 2 {
-		p.AddUint16Field("pos")
-	} else if positSize == 3 {
-		p.AddUint24Field("pos")
-	} else {
-		p.AddUint32Field("pos")
-	}
+	p.AddUintField("pos", positSize, false)
 	return p
 }
 
@@ -101,23 +103,17 @@ func NewBuilder(keySize, positSize int) *Builder {
 }
 
 func (b *Builder) Build(w io.Writer, rs []string, ks []KeyPair) (err error) {
-	var idxBegin Position
-	headData := make(map[string]interface{})
-	headData["sizeProps"] = b.Header.GetSizeProps(0)
-	if idxBegin, err = b.BuildRecord(rs); err != nil {
+	b.Header.SizeProps = b.Header.GetSizeProps(0)
+	base := b.Header.GetHeaderSize()
+	if b.Header.IdxBegin, err = b.BuildRecord(rs, base); err != nil {
 		return err
 	}
-	if headData["keyCount"], err = b.BuildIndex(ks); err != nil {
+	if b.Header.KeyCount, err = b.BuildIndex(ks); err != nil {
 		return err
 	}
-	idxEnd := idxBegin + Position(b.Index.Len())
-	fmt.Println(idxBegin, idxEnd)
-	headData["idxBegin"] = uint32(idxBegin)
-	headData["idxEnd"] = uint32(idxEnd)
-	version := time.Now().Format("060102")
-	headData["version"] = version + "00"
-	b.Header.SetTable(headData)
-	headBytes := b.Header.Encode()
+	b.Header.IdxEnd = b.Header.IdxBegin + uint32(b.Index.Len())
+	b.Header.Version = time.Now().Format("060102") + "00"
+	headBytes := b.Header.Serialize(b.Header)
 	if _, err = w.Write(headBytes); err != nil {
 		return err
 	}
@@ -128,38 +124,31 @@ func (b *Builder) Build(w io.Writer, rs []string, ks []KeyPair) (err error) {
 	return
 }
 
-func (b *Builder) BuildRecord(records []string) (idxBegin Position, err error) {
+func (b *Builder) BuildRecord(records []string, base int) (idxBegin uint32, err error) {
 	var pos Position
-	base := b.Header.GetHeaderSize()
 	for _, rec := range records {
 		pos = Position(base + b.Record.Len())
 		_, err = b.Record.WriteString(rec)
 		b.Record.WriteByte(0x00)
 		b.PosList = append(b.PosList, pos)
 	}
-	idxBegin = Position(base + b.Record.Len()) // IdxBegin
+	idxBegin = uint32(base + b.Record.Len()) // IdxBegin
 	return
 }
 
 func (b *Builder) BuildIndex(keypairs []KeyPair) (keyCount uint32, err error) {
 	var addr Position
 	positCount := len(b.PosList)
-	positSize := b.Header.PositSize
-	idxData := make(map[string]interface{})
 	for _, pair := range keypairs {
-		idxData["key"] = pair.Key
 		if pair.Idx < 0 || pair.Idx >= positCount {
 			addr = Position(0)
 		} else {
 			addr = b.PosList[pair.Idx]
 		}
-		if positSize == 2 {
-			idxData["pos"] = uint16(addr)
-		} else {
-			idxData["pos"] = uint32(addr)
-		}
-		b.IdxObject.SetTable(idxData)
-		_, err = b.Index.Write(b.IdxObject.Encode())
+		b.IdxObject.Key = pair.Key
+		b.IdxObject.Pos = uint64(addr)
+		chunk := b.IdxObject.Serialize(b.IdxObject)
+		_, err = b.Index.Write(chunk)
 	}
 	if size := len(keypairs); size > 0 {
 		keyCount = uint32(size)
