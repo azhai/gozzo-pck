@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -58,7 +59,7 @@ func Phone2Bin(phone string) []byte {
 func ReadMobFile(fdir string) (records []string, keypairs []find.KeyPair, err error) {
 	var lines []string
 	fpath := filepath.Join(fdir, "city.txt")
-	lines, err = common.ReadFileLines(fpath)
+	lines, err = common.ReadFile(fpath, bufio.ScanLines)
 	if err != nil {
 		return
 	}
@@ -67,7 +68,7 @@ func ReadMobFile(fdir string) (records []string, keypairs []find.KeyPair, err er
 		records = append(records, ps[1])
 	}
 	fpath = filepath.Join(fdir, "phone.txt")
-	lines, err = common.ReadFileLines(fpath)
+	lines, err = common.ReadFile(fpath, bufio.ScanLines)
 	if err != nil {
 		return
 	}

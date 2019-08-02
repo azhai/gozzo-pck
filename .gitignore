@@ -10,4 +10,7 @@
 *.txt
 *.upx
 *.vscode
+phone/data/phone.dat
+phone/data/phones.csv
+phone/phone
 tests/
