@@ -1,6 +1,7 @@
 package serialize
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -79,46 +80,30 @@ func (t *Options) ByRemark(r string, caseSensitive bool) int {
 // 枚举类型
 type Enum struct {
 	Opts  *Options
-	int  // The index of option
+	Byte  // opts的索引，范围0~255
 }
 
 func NewEnum(opts *Options) *Enum {
-	return &Enum{Opts:opts}
+	return &Enum{Opts:opts, Byte:Byte(0)}
 }
 
-func (m *Enum) Encode(v interface{}) []byte {
-	if idx, ok := v.(int); ok {
-		m.SetIndex(idx)
-		b, _ := m.GetItem()
-		return []byte{b}
-	}
-	return nil
+func (m Enum) GetIndex() int {
+	return int(m.Byte)
 }
 
-func (m *Enum) Decode(chunk []byte) interface{} {
-	obj := NewEnum(m.Opts)
-	b := chunk[len(chunk) - 1]
-	obj.SetIndex(m.Opts.ByValue(b))
-	return obj
+func (m Enum) GetItem() (byte, string) {
+	return m.Opts.Item(m.GetIndex())
 }
 
-func (m *Enum) SetIndex(i int) bool {
-	if i >= 0 && i < m.Opts.Size() {
-		m.int = i
-		return true
-	}
-	return false
-}
-
-func (m *Enum) GetIndex() int {
-	return m.int
-}
-
-func (m *Enum) GetItem() (byte, string) {
-	return m.Opts.Item(m.int)
-}
-
-func (m *Enum) ToString() string {
+func (m Enum) ToString() string {
 	_, mark := m.GetItem()
 	return mark
+}
+
+func (m *Enum) SetIndex(i int) error {
+	if i >= 0 && i < m.Opts.Size() {
+		m.Byte = Byte(i)
+		return nil
+	}
+	return fmt.Errorf("Can not found the options of %d", i)
 }

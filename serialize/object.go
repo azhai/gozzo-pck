@@ -8,18 +8,21 @@ import (
 )
 
 type ISerializer interface {
-	Serialize(obj interface{}) []byte
-	Unserialize(chunk []byte, objref interface{}) error
+	AddChild(name string, child IEncoder, field *match.Field)
+	GetChild(name string) (IEncoder, bool)
+	IEncoder
 }
 
 // 对象
 type Object struct {
-	children map[string]IEncoder
-	Matcher  *match.FieldMatcher
+	Translate func(s string) string
+	children  map[string]IEncoder
+	Matcher   *match.FieldMatcher
 }
 
 func NewObject() *Object {
 	t := &Object{
+		Translate: strings.Title,
 		children: make(map[string]IEncoder),
 		Matcher:  match.NewFieldMatcher(),
 	}
@@ -27,12 +30,12 @@ func NewObject() *Object {
 	return t
 }
 
-func (t *Object) Serialize(obj interface{}) []byte {
+func (t Object) Encode(v interface{}) []byte {
 	data := make(map[string][]byte)
-	rv := reflect.Indirect(reflect.ValueOf(obj))
+	rv := reflect.Indirect(reflect.ValueOf(v))
 	var val reflect.Value
 	for name, child := range t.children {
-		val = rv.FieldByName(strings.Title(name))
+		val = rv.FieldByName(t.Translate(name))
 		if val.IsValid() { // 存在的字段
 			data[name] = child.Encode(val.Interface())
 		}
@@ -40,30 +43,26 @@ func (t *Object) Serialize(obj interface{}) []byte {
 	return t.Matcher.Build(data)
 }
 
-func (t *Object) Unserialize(chunk []byte, objref interface{}) error {
+func (t *Object) Decode(chunk []byte) (interface{}, error) {
+	var (
+		err error
+		v   interface{}
+	)
 	data := t.Matcher.Match(chunk, true)
-	rv := reflect.Indirect(reflect.Indirect(reflect.ValueOf(objref)))
-	var val reflect.Value
+	rv := reflect.Indirect(reflect.ValueOf(t))
+	rv = reflect.Indirect(rv)
 	for name, child := range t.children {
 		if bin, ok := data[name]; ok && bin != nil {
-			val = rv.FieldByName(strings.Title(name))
-			if val.IsValid() && val.CanSet() { // 存在的字段
-				val.Set(reflect.ValueOf(child.Decode(bin)))
+			val := rv.FieldByName(strings.Title(name))
+			if !val.IsValid() || !val.CanSet() { // 存在的字段
+				continue
+			}
+			if v, err = child.Decode(bin); err == nil {
+				val.Set(reflect.ValueOf(v))
 			}
 		}
 	}
-	return nil
-}
-
-func (t *Object) Encode(v interface{}) []byte {
-	return t.Serialize(v)
-}
-
-func (t *Object) Decode(chunk []byte) interface{} {
-	if err := t.Unserialize(chunk, &t); err == nil {
-		return t
-	}
-	return nil
+	return t, err
 }
 
 func (t *Object) GetChild(name string) (IEncoder, bool) {
@@ -71,55 +70,46 @@ func (t *Object) GetChild(name string) (IEncoder, bool) {
 	return child, ok
 }
 
-func (t *Object) AddChild(child IEncoder, name string, size int, rev bool) *match.Field {
-	t.children[name] = child
+func (t *Object) AddChild(name string, child IEncoder, field *match.Field) {
+	if name != "" {
+		t.children[name] = child
+	}
+	t.Matcher.AddField(name, field)
+}
+
+func (t *Object) AddFixedChild(name string, child IEncoder, size int, rev bool) *match.Field {
 	if rev && size > 0 {
 		size = 0 - size
 	}
 	field := match.NewField(size, false)
-	return t.Matcher.AddField(name, field)
+	t.AddChild(name, child, field)
+	return field
 }
 
-func (t *Object) AddSpanField(size int) *match.Field {
-	return t.Matcher.AddField("", match.NewField(size, false))
+func (t *Object) AddSpanField(size int, rev bool) *match.Field {
+	return t.AddFixedChild("", nil, size, rev)
 }
 
 func (t *Object) AddByteField(name string, rev bool) *match.Field {
-	return t.AddChild(new(Byte), name, 1, rev)
+	return t.AddFixedChild(name, new(Byte), 1, rev)
 }
 
-func (t *Object) AddBytesField(name string, size int) *match.Field {
-	return t.AddChild(new(Bytes), name, size, false)
+func (t *Object) AddBytesField(name string, size int, rev bool) *match.Field {
+	return t.AddFixedChild(name, new(Bytes), size, rev)
 }
 
 func (t *Object) AddStringField(name string, size int) *match.Field {
-	return t.AddChild(new(String), name, size, false)
+	return t.AddFixedChild(name, new(String), size, false)
 }
 
 func (t *Object) AddHexStrField(name string, size int) *match.Field {
-	return t.AddChild(new(HexStr), name, size, false)
+	return t.AddFixedChild(name, new(HexStr), size, false)
 }
 
-func (t *Object) AddUintField(name string, size int, rev bool) *match.Field {
-	return t.AddChild(&Uint{Size:size}, name, size, rev)
+func (t *Object) AddUintField(name string, size int) *match.Field {
+	return t.AddFixedChild(name, &Unsigned{Size:size}, size, false)
 }
 
-func (t *Object) AddUint64Field(name string, rev bool) *match.Field {
-	return t.AddChild(new(Uint64), name, 8, rev)
-}
-
-func (t *Object) AddUint32Field(name string, rev bool) *match.Field {
-	return t.AddChild(new(Uint32), name, 4, rev)
-}
-
-func (t *Object) AddUint24Field(name string, rev bool) *match.Field {
-	return t.AddChild(new(Uint24), name, 3, rev)
-}
-
-func (t *Object) AddUint16Field(name string, rev bool) *match.Field {
-	return t.AddChild(new(Uint16), name, 2, rev)
-}
-
-func (t *Object) AddEnumField(name string, rev bool, opts *Options) *match.Field {
-	return t.AddChild(NewEnum(opts), name, 1, rev)
+func (t *Object) AddEnumField(name string, opts *Options) *match.Field {
+	return t.AddFixedChild(name, NewEnum(opts), 1, false)
 }
