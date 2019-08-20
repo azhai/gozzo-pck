@@ -7,22 +7,58 @@ import (
 	"github.com/azhai/gozzo-pck/match"
 )
 
+type IEncoder interface {
+	Encode(v interface{}) []byte
+	Decode(chunk []byte) interface{}
+}
+
 type ISerializer interface {
-	AddChild(name string, child IEncoder, field *match.Field)
+	GetMatcher() *match.FieldMatcher
+	GetNames() map[string]string
 	GetChild(name string) (IEncoder, bool)
-	IEncoder
+}
+
+func Serialize(s ISerializer) []byte {
+	data := make(map[string][]byte)
+	rv := reflect.Indirect(reflect.ValueOf(s))
+	for name, prop := range s.GetNames() {
+		child, ok := s.GetChild(name)
+		rf := rv.FieldByName(prop)
+		if ok && rf.IsValid() { // 存在的字段
+			data[name] = child.Encode(rf.Interface())
+		}
+	}
+	return s.GetMatcher().Build(data)
+}
+
+func Unserialize(chunk []byte, s ISerializer) (err error) {
+	data := s.GetMatcher().Match(chunk, true)
+	rv := reflect.Indirect(reflect.Indirect(reflect.ValueOf(s)))
+	var val interface{}
+	for name, prop := range s.GetNames() {
+		child, ok := s.GetChild(name)
+		rf := rv.FieldByName(prop)
+		if !ok || !rf.IsValid() || !rf.CanSet() {
+			continue
+		}
+		if bin, ok := data[name]; ok {
+			val = child.Decode(bin)
+		} else {
+			val = child.Decode(nil)
+		}
+		rf.Set(reflect.ValueOf(val))
+	}
+	return
 }
 
 // 对象
 type Object struct {
-	Translate func(s string) string
-	children  map[string]IEncoder
-	Matcher   *match.FieldMatcher
+	children map[string]IEncoder
+	Matcher  *match.FieldMatcher
 }
 
 func NewObject() *Object {
 	t := &Object{
-		Translate: strings.Title,
 		children: make(map[string]IEncoder),
 		Matcher:  match.NewFieldMatcher(),
 	}
@@ -30,39 +66,16 @@ func NewObject() *Object {
 	return t
 }
 
-func (t Object) Encode(v interface{}) []byte {
-	data := make(map[string][]byte)
-	rv := reflect.Indirect(reflect.ValueOf(v))
-	var val reflect.Value
-	for name, child := range t.children {
-		val = rv.FieldByName(t.Translate(name))
-		if val.IsValid() { // 存在的字段
-			data[name] = child.Encode(val.Interface())
-		}
-	}
-	return t.Matcher.Build(data)
+func (t *Object) GetMatcher() *match.FieldMatcher {
+	return t.Matcher
 }
 
-func (t *Object) Decode(chunk []byte) (interface{}, error) {
-	var (
-		err error
-		v   interface{}
-	)
-	data := t.Matcher.Match(chunk, true)
-	rv := reflect.Indirect(reflect.ValueOf(t))
-	rv = reflect.Indirect(rv)
-	for name, child := range t.children {
-		if bin, ok := data[name]; ok && bin != nil {
-			val := rv.FieldByName(strings.Title(name))
-			if !val.IsValid() || !val.CanSet() { // 存在的字段
-				continue
-			}
-			if v, err = child.Decode(bin); err == nil {
-				val.Set(reflect.ValueOf(v))
-			}
-		}
+func (t *Object) GetNames() map[string]string {
+	names := make(map[string]string)
+	for name := range t.children {
+		names[name] = strings.Title(name)
 	}
-	return t, err
+	return names
 }
 
 func (t *Object) GetChild(name string) (IEncoder, bool) {
@@ -107,7 +120,7 @@ func (t *Object) AddHexStrField(name string, size int) *match.Field {
 }
 
 func (t *Object) AddUintField(name string, size int) *match.Field {
-	return t.AddFixedChild(name, &Unsigned{Size:size}, size, false)
+	return t.AddFixedChild(name, &Unsigned{Size: size}, size, false)
 }
 
 func (t *Object) AddEnumField(name string, opts *Options) *match.Field {

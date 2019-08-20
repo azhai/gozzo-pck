@@ -87,15 +87,15 @@ func NewEnum(opts *Options) *Enum {
 	return &Enum{Opts:opts, Byte:Byte(0)}
 }
 
-func (m Enum) GetIndex() int {
+func (m *Enum) GetIndex() int {
 	return int(m.Byte)
 }
 
-func (m Enum) GetItem() (byte, string) {
+func (m *Enum) GetItem() (byte, string) {
 	return m.Opts.Item(m.GetIndex())
 }
 
-func (m Enum) ToString() string {
+func (m *Enum) ToString() string {
 	_, mark := m.GetItem()
 	return mark
 }
@@ -107,3 +107,10 @@ func (m *Enum) SetIndex(i int) error {
 	}
 	return fmt.Errorf("Can not found the options of %d", i)
 }
+
+func (m Enum) Decode(chunk []byte) interface{} {
+	b := m.Byte.Decode(chunk).(byte)
+	m.Byte = Byte(b)
+	return m
+}
+

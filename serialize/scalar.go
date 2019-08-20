@@ -7,11 +7,6 @@ import (
 	"github.com/azhai/gozzo-utils/common"
 )
 
-type IEncoder interface {
-	Encode(v interface{}) []byte
-	Decode(chunk []byte) (interface{}, error)
-}
-
 // 单个字节
 type Byte byte
 
@@ -19,12 +14,12 @@ func (n Byte) Encode(v interface{}) []byte {
 	return []byte{v.(byte)}
 }
 
-func (n Byte) Decode(chunk []byte) (interface{}, error) {
+func (n Byte) Decode(chunk []byte) interface{} {
 	v := byte(0x00)
 	if chunk != nil {
 		v = chunk[len(chunk) - 1]
 	}
-	return v, nil
+	return v
 }
 
 // 字节数组
@@ -34,8 +29,8 @@ func (s Bytes) Encode(v interface{}) []byte {
 	return v.([]byte)
 }
 
-func (s Bytes) Decode(chunk []byte) (interface{}, error) {
-	return chunk, nil
+func (s Bytes) Decode(chunk []byte) interface{} {
+	return chunk
 }
 
 // 字符串
@@ -45,8 +40,8 @@ func (s String) Encode(v interface{}) []byte {
 	return []byte(v.(string))
 }
 
-func (s String) Decode(chunk []byte) (interface{}, error) {
-	return string(chunk), nil
+func (s String) Decode(chunk []byte) interface{} {
+	return string(chunk)
 }
 
 // BCD码
@@ -56,9 +51,8 @@ func (s HexStr) Encode(v interface{}) []byte {
 	return common.Hex2Bin(v.(string))
 }
 
-func (s HexStr) Decode(chunk []byte) (interface{}, error) {
-	v := common.Bin2Hex(chunk)
-	return v, nil
+func (s HexStr) Decode(chunk []byte) interface{} {
+	return common.Bin2Hex(chunk)
 }
 
 // 无符号整数
@@ -84,15 +78,67 @@ func (n Unsigned) Cap() int {
 }
 
 func (n Unsigned) Encode(v interface{}) []byte {
-	chunk := make([]byte, n.Cap())
-	buf := bytes.NewBuffer(chunk)
+	buf := bytes.NewBuffer(nil)
 	_ = binary.Write(buf, binary.BigEndian, v)
+	chunk := make([]byte, n.Cap())
+	if size, _ := buf.Read(chunk); size == n.Size {
+		return chunk
+	}
 	return common.ResizeBytes(chunk, true, n.Size)
 }
 
-func (n Unsigned) Decode(chunk []byte) (interface{}, error) {
-	chunk = common.ResizeBytes(chunk, true, n.Cap())
-	buf := bytes.NewReader(chunk)
-	err := binary.Read(buf, binary.BigEndian, &n)
-	return n, err
+func (n *Unsigned) Decode(chunk []byte) interface{} {
+	capSize := n.Cap()
+	chunk = common.ResizeBytes(chunk, true, capSize)
+	switch capSize {
+	case 1:
+		return chunk[0]
+	case 2:
+		return binary.BigEndian.Uint16(chunk)
+	case 4:
+		return binary.BigEndian.Uint32(chunk)
+	default:
+		return binary.BigEndian.Uint64(chunk)
+	}
+}
+
+// 整数
+type Integer struct {
+	Negative bool
+	*Unsigned
+}
+
+func (n *Integer) DecodeInt64(chunk []byte) (v int64) {
+	u := n.Unsigned.Decode(chunk)
+	switch u := u.(type) {
+	default:
+		return 0
+	case uint8:
+		v = int64(u)
+	case uint16:
+		v = int64(u)
+	case uint32:
+		v = int64(u)
+	case uint64:
+		v = int64(u)
+	}
+	if n.Negative {
+		return 0 - v
+	} else {
+		return v
+	}
+}
+
+func (n *Integer) Decode(chunk []byte) interface{} {
+	v := n.DecodeInt64(chunk)
+	switch n.Cap() {
+	case 1:
+		return int8(v)
+	case 2:
+		return int16(v)
+	case 4:
+		return int32(v)
+	default:
+		return v
+	}
 }
