@@ -3,6 +3,7 @@ package serialize
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/azhai/gozzo-utils/common"
 	"github.com/stretchr/testify/assert"
@@ -13,8 +14,9 @@ var (
 		"0000000c000301c905250741c82b00030000011c1907200402470104000000fa" +
 		"2a02000030011831010c57080000000000000000fb0100fc02000afd0209b5fe" +
 		"143839383630343132313031393931303233313532ff020001917e"
-	reply808 = "7e8001000508203508566700080007020000ad7e"
+	reply808 = "7e8001000508203508566700080007020003ae7e"
 	remarks = []string{"成功/确认", "失败", "消息有误", "不支持", "报警处理确认"}
+	xdim, ydim int64 = -1234, -567788
 )
 
 func Escape(data []byte) []byte {
@@ -100,7 +102,8 @@ func TestProto808(t *testing.T) {
 type BodyReply struct {
 	Seqno  uint16  // 原消息的流水号
 	Code   string  // 原消息的命令ID
-	Status byte   // 结果 0:成功/确认；1:失败；2:消息有误；3:不支持；4:报警处理确认
+	Status byte
+	StatusEnum *Enum   // 结果 0:成功/确认；1:失败；2:消息有误；3:不支持；4:报警处理确认
 	*Object
 }
 
@@ -108,9 +111,8 @@ func NewBodyReply() *BodyReply {
 	b := &BodyReply{Object: NewObject()}
 	b.AddUintField("seqno", 2)
 	b.AddHexStrField("code", 2)
-	b.AddByteField("status", false)
-	// opts := NewOptions(remarks)
-	// b.AddEnumField("status", opts)
+	opts := NewOptions(remarks)
+	_, b.StatusEnum = b.AddEnumField("status", opts)
 	return b
 }
 
@@ -122,7 +124,49 @@ func _testBodyReply(t *testing.T, body []byte) {
 	assert.NoError(t, err)
 	assert.Equal(t, uint16(7), b.Seqno)
 	assert.Equal(t, "0200", b.Code)
-	assert.Equal(t, byte(0x00), b.Status)
+	assert.Equal(t, byte(0x03), b.Status)
+	assert.Equal(t, 3, b.StatusEnum.GetIndex())
 	assert.Equal(t, body, Serialize(b))
 	t.Logf("%+v\n", b)
+}
+
+type BodyComplex struct {
+	Point  *TwoDim
+	Now  time.Time
+	NowStamp  *TimeStamp
+	Today  time.Time
+	TodayDate  *Date
+	*Object
+}
+
+func NewBodyComplex() *BodyComplex {
+	c := &BodyComplex{Object: NewObject()}
+	_, c.Point = c.AddTwoDimField("point", 4, xdim, ydim)
+	_, c.NowStamp = c.AddTimeStampField("now")
+	_, c.TodayDate = c.AddDateField("today")
+	return c
+}
+
+func TestComplex(t *testing.T) {
+	now := time.Now()
+	// 初始化
+	c := NewBodyComplex()
+	c.Now = now
+	c.Today = common.Today()
+	t.Logf("%+v\n", c)
+	// 序列化
+	body := Serialize(c)
+	t.Log(common.Bin2Hex(body))
+	// 清空
+	c.Point = NewTwoDimXY(4, -1, -2)
+	c.Now, c.Today = time.Unix(1, 0), time.Unix(2, 0)
+	// 解析
+	err := Unserialize(body, c)
+	assert.NoError(t, err)
+	assert.Equal(t, QuadrantThird, c.Point.Quadrant)
+	assert.Equal(t, uint64(0 - xdim), c.Point.Xdim)
+	assert.Equal(t, uint64(0 - ydim), c.Point.Ydim)
+	assert.Equal(t, now.Unix(), c.Now.Unix())
+	assert.Equal(t, common.ToDate(now).Unix(), c.Today.Unix())
+	t.Logf("%+v\n", c)
 }

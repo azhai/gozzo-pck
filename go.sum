@@ -1,5 +1,5 @@
-github.com/azhai/gozzo-utils v0.2.5 h1:I97XHCfd5WaJs8QFp63tN69P0REXZv3CDyb6FtbV1aQ=
-github.com/azhai/gozzo-utils v0.2.5/go.mod h1:nWWZUfFJ/kkHZtq/uhR/OG4KvuNYzJM5V0MYNcW/53A=
+github.com/azhai/gozzo-utils v0.3.0 h1:gaSdqSFb9vw893ZhvK+DQHysVp6sa8KJr4QaiuSbptw=
+github.com/azhai/gozzo-utils v0.3.0/go.mod h1:nWWZUfFJ/kkHZtq/uhR/OG4KvuNYzJM5V0MYNcW/53A=
 github.com/davecgh/go-spew v1.1.0 h1:ZDRjVQ15GmhC3fiQ8ni8+OwkZQO4DARzQgrnXU1Liz8=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/erikstmartin/go-testdb v0.0.0-20160219214506-8d10e4a1bae5/go.mod h1:a2zkGnVExMxdzMo3M0Hi/3sEU+cWnZpSni0O6/Yb/P0=

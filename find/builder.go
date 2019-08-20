@@ -49,13 +49,13 @@ func NewDatHeader(keySize, positSize int) *DatHeader {
 		PositSize: positSize,
 		Object: serialize.NewObject(),
 	}
-	p.AddUint32Field("idxBegin", false) // 第一个索引开始位置
-	p.AddUint32Field("idxEnd", false)   // 最后一个索引结束位置
-	p.AddUint32Field("keyCount", false)
+	p.AddUintField("idxBegin", 4) // 第一个索引开始位置
+	p.AddUintField("idxEnd", 4)   // 最后一个索引结束位置
+	p.AddUintField("keyCount", 4)
 	// 0-7 ItemSize: 0（变长）~ 256
 	// 8-12 KeySize: 1 ~ 31
 	// 13-15 PositSize: 2 ~ 4
-	p.AddUint16Field("sizeProps", false)
+	p.AddUintField("sizeProps", 2)
 	p.AddHexStrField("version", 4) // 4字节
 	return p
 }
@@ -82,8 +82,8 @@ type DatIndex struct {
 
 func NewDatIndex(keySize, positSize int) *DatIndex {
 	p := &DatIndex{Object: serialize.NewObject()}
-	p.AddBytesField("key", keySize)
-	p.AddUintField("pos", positSize, false)
+	p.AddBytesField("key", keySize, false)
+	p.AddUintField("pos", positSize)
 	return p
 }
 
@@ -113,7 +113,7 @@ func (b *Builder) Build(w io.Writer, rs []string, ks []KeyPair) (err error) {
 	}
 	b.Header.IdxEnd = b.Header.IdxBegin + uint32(b.Index.Len())
 	b.Header.Version = time.Now().Format("060102") + "00"
-	headBytes := b.Header.Serialize(b.Header)
+	headBytes := serialize.Serialize(b.Header)
 	if _, err = w.Write(headBytes); err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func (b *Builder) BuildIndex(keypairs []KeyPair) (keyCount uint32, err error) {
 		}
 		b.IdxObject.Key = pair.Key
 		b.IdxObject.Pos = uint64(addr)
-		chunk := b.IdxObject.Serialize(b.IdxObject)
+		chunk := serialize.Serialize(b.IdxObject)
 		_, err = b.Index.Write(chunk)
 	}
 	if size := len(keypairs); size > 0 {

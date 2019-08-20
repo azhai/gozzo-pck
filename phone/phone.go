@@ -58,22 +58,29 @@ func Phone2Bin(phone string) []byte {
 
 func ReadMobFile(fdir string) (records []string, keypairs []find.KeyPair, err error) {
 	var lines []string
+	// 较小的文件使用ReadLines
 	fpath := filepath.Join(fdir, "city.txt")
-	lines, err = common.ReadFile(fpath, bufio.ScanLines)
-	if err != nil {
+	if lines, err = common.ReadLines(fpath); err != nil {
 		return
 	}
 	for _, line := range lines {
 		ps := strings.SplitN(line, "\t", 2)
+		if len(ps) < 2 {
+			fmt.Println(line)
+			continue
+		}
 		records = append(records, ps[1])
 	}
+	// 较大的文件使用ReadFileTo
 	fpath = filepath.Join(fdir, "phone.txt")
-	lines, err = common.ReadFile(fpath, bufio.ScanLines)
-	if err != nil {
-		return
-	}
-	for _, line := range lines {
-		ps := strings.SplitN(line, "\t", 3)
+	output := make(chan []byte)
+	go common.ReadFileTo(fpath, bufio.ScanLines, output)
+	for line := range output {
+		ps := strings.SplitN(string(line), "\t", 3)
+		if len(ps) < 3 {
+			fmt.Println(string(line))
+			continue
+		}
 		n, _ := strconv.Atoi(ps[2])
 		key := Mob2Bin(ps[0], ps[1])
 		keypairs = append(keypairs, find.KeyPair{Key: key, Idx: n})
@@ -87,7 +94,7 @@ type MobFinder struct {
 
 func NewMobFinder(fdir string) *MobFinder {
 	fpath := filepath.Join(fdir, MOB_DAT_FILE)
-	fp, size, err := common.OpenFile(fpath)
+	fp, size, err := common.OpenFile(fpath, false, false)
 	if err != nil {
 		fmt.Println(err)
 		return nil

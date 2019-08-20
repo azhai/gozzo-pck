@@ -1,7 +1,10 @@
 package serialize
 
 import (
+	"fmt"
 	"time"
+
+	"github.com/azhai/gozzo-utils/common"
 )
 
 const (
@@ -21,22 +24,23 @@ type TwoDim struct {
 	*Unsigned
 }
 
-func NewTwoDim(quad int) *TwoDim {
+func NewTwoDim(size, quad int) *TwoDim {
 	return &TwoDim{
 		Quadrant: quad,
-		Unsigned: &Unsigned{Size: 8},
+		Unsigned: &Unsigned{Size: size},
 	}
 }
 
-func NewTwoDimXY(x, y int64) *TwoDim {
-	td := NewTwoDim(QuadrantFirst)
+func NewTwoDimXY(size int, x, y int64) *TwoDim {
+	td := NewTwoDim(size, QuadrantFirst)
 	if y < 0 {
 		y = 0 - y
 		td.Quadrant = QuadrantForth
 	}
 	if x < 0 {
 		x = 0 - x
-		if y < 0 {
+		// y的符号已经去掉，这里不能再用 y<0 来判断
+		if td.Quadrant == QuadrantForth {
 			td.Quadrant = QuadrantThird
 		} else {
 			td.Quadrant = QuadrantSecond
@@ -48,21 +52,37 @@ func NewTwoDimXY(x, y int64) *TwoDim {
 }
 
 func (td TwoDim) Encode(v interface{}) []byte {
-	x := td.Unsigned.Encode(td.Xdim)
-	y := td.Unsigned.Encode(td.Ydim)
-	return append(x, y...)
+	var dx, dy uint64
+	switch v := v.(type) {
+	case TwoDim:
+		dx, dy = v.Xdim, v.Ydim
+	case *TwoDim:
+		dx, dy = v.Xdim, v.Ydim
+	}
+	fmt.Printf("%d %d\n", dx, dy)
+	xbs := td.Unsigned.Encode(dx)
+	ybs := td.Unsigned.Encode(dy)
+	fmt.Printf("%x %x\n", xbs, ybs)
+	return append(xbs, ybs...)
 }
 
 func (td *TwoDim) Decode(chunk []byte) interface{} {
-	v := NewTwoDim(td.Quadrant)
-	v.Xdim = td.Unsigned.Decode(chunk[:td.Size]).(uint64)
-	v.Ydim = td.Unsigned.Decode(chunk[td.Size:]).(uint64)
-	return v
+	td.Xdim = td.Unsigned.DecodeUint64(chunk[:td.Size])
+	td.Ydim = td.Unsigned.DecodeUint64(chunk[td.Size:])
+	return td
 }
 
 // 时间戳，精确到秒
 type TimeStamp struct {
 	*Integer
+}
+
+func NewTimeStamp() *TimeStamp {
+	return &TimeStamp{
+		Integer: &Integer{
+			Unsigned: &Unsigned{Size: 8},
+		},
+	}
 }
 
 func (ts TimeStamp) Encode(v interface{}) []byte {
@@ -72,7 +92,7 @@ func (ts TimeStamp) Encode(v interface{}) []byte {
 	return nil
 }
 
-func (ts *TimeStamp) Decode(chunk []byte) interface{} {
+func (ts TimeStamp) Decode(chunk []byte) interface{} {
 	v := ts.Integer.DecodeInt64(chunk)
 	return time.Unix(v, 0)
 }
@@ -91,7 +111,8 @@ func (d Date) Encode(v interface{}) []byte {
 
 func (d Date) Decode(chunk []byte) interface{} {
 	v := d.HexStr.Decode(chunk)
-	if t, err := time.Parse(LayoutDate, v.(string)); err == nil {
+	t, err := common.ParseDate(LayoutDate, v.(string))
+	if err == nil {
 		return t
 	}
 	return nil

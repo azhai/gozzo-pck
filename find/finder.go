@@ -9,7 +9,7 @@ import (
 )
 
 func GetAddrUint32(addr []byte) uint32 {
-	obj := serialize.Uint32(0)
+	obj := serialize.NewUnsigned(4)
 	return obj.Decode(addr).(uint32)
 }
 
@@ -102,7 +102,7 @@ func NewFinder(reader io.ReaderAt, keySize, positSize int) (f *Finder, err error
 	if _, err = f.reader.ReadAt(headData, 0); err != nil {
 		return
 	}
-	if err = f.Header.Unserialize(headData, &f.Header); err != nil {
+	if err = serialize.Unserialize(headData, f.Header); err != nil {
 		return
 	}
 	idxBegin, idxEnd := f.Header.GetIndexRange()

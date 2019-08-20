@@ -60,34 +60,48 @@ type Unsigned struct {
 	Size int
 }
 
+func NewUnsigned(size int) *Unsigned {
+	return &Unsigned{Size: size}
+}
+
+func (n Unsigned) MaxCap() int {
+	return 8
+}
+
 func (n Unsigned) Cap() int {
 	// 修正错误的长度
 	if n.Size < 1 {
 		n.Size = 1
-	} else if n.Size > 8 {
-		n.Size = 8
+	} else if n.Size > n.MaxCap() {
+		n.Size = n.MaxCap()
 	}
 	// 对应合适的uint
-	if n.Size == 3 {
-		return 4
-	} else if n.Size >= 5 && n.Size <= 7 {
-		return 8
-	} else {
+	if n.Size <= 2 {
 		return n.Size
+	}
+	if n.Size == 3 || n.Size == 4 {
+		return 4
+	} else {
+		return 8
 	}
 }
 
 func (n Unsigned) Encode(v interface{}) []byte {
 	buf := bytes.NewBuffer(nil)
 	_ = binary.Write(buf, binary.BigEndian, v)
-	chunk := make([]byte, n.Cap())
-	if size, _ := buf.Read(chunk); size == n.Size {
-		return chunk
+	chunk := make([]byte, n.MaxCap())
+	if size, _ := buf.Read(chunk); size > 0 {
+		chunk = chunk[:size]
 	}
 	return common.ResizeBytes(chunk, true, n.Size)
 }
 
-func (n *Unsigned) Decode(chunk []byte) interface{} {
+func (n Unsigned) DecodeUint64(chunk []byte) uint64 {
+	chunk = common.ResizeBytes(chunk, true, n.MaxCap())
+	return binary.BigEndian.Uint64(chunk)
+}
+
+func (n Unsigned) Decode(chunk []byte) interface{} {
 	capSize := n.Cap()
 	chunk = common.ResizeBytes(chunk, true, capSize)
 	switch capSize {
@@ -108,28 +122,16 @@ type Integer struct {
 	*Unsigned
 }
 
-func (n *Integer) DecodeInt64(chunk []byte) (v int64) {
-	u := n.Unsigned.Decode(chunk)
-	switch u := u.(type) {
-	default:
-		return 0
-	case uint8:
-		v = int64(u)
-	case uint16:
-		v = int64(u)
-	case uint32:
-		v = int64(u)
-	case uint64:
-		v = int64(u)
-	}
+func (n Integer) DecodeInt64(chunk []byte) int64 {
+	v := n.Unsigned.DecodeUint64(chunk)
 	if n.Negative {
-		return 0 - v
+		return 0 - int64(v)
 	} else {
-		return v
+		return int64(v)
 	}
 }
 
-func (n *Integer) Decode(chunk []byte) interface{} {
+func (n Integer) Decode(chunk []byte) interface{} {
 	v := n.DecodeInt64(chunk)
 	switch n.Cap() {
 	case 1:

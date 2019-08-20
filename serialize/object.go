@@ -33,7 +33,7 @@ func Serialize(s ISerializer) []byte {
 
 func Unserialize(chunk []byte, s ISerializer) (err error) {
 	data := s.GetMatcher().Match(chunk, true)
-	rv := reflect.Indirect(reflect.Indirect(reflect.ValueOf(s)))
+	rv := reflect.Indirect(reflect.ValueOf(s))
 	var val interface{}
 	for name, prop := range s.GetNames() {
 		child, ok := s.GetChild(name)
@@ -120,9 +120,29 @@ func (t *Object) AddHexStrField(name string, size int) *match.Field {
 }
 
 func (t *Object) AddUintField(name string, size int) *match.Field {
-	return t.AddFixedChild(name, &Unsigned{Size: size}, size, false)
+	return t.AddFixedChild(name, NewUnsigned(size), size, false)
 }
 
-func (t *Object) AddEnumField(name string, opts *Options) *match.Field {
-	return t.AddFixedChild(name, NewEnum(opts), 1, false)
+func (t *Object) AddEnumField(name string, opts *Options) (*match.Field, *Enum) {
+	m := NewEnum(opts)
+	f := t.AddFixedChild(name, m, 1, false)
+	return f, m
+}
+
+func (t *Object) AddTwoDimField(name string, size int, x, y int64) (*match.Field, *TwoDim) {
+	td := NewTwoDimXY(size, x, y)
+	f := t.AddFixedChild(name, td, td.Size * 2, false)
+	return f, td
+}
+
+func (t *Object) AddTimeStampField(name string) (*match.Field, *TimeStamp) {
+	ts := NewTimeStamp()
+	f := t.AddFixedChild(name, ts, ts.Size, false)
+	return f, ts
+}
+
+func (t *Object) AddDateField(name string) (*match.Field, *Date) {
+	d := new(Date)
+	f := t.AddFixedChild(name, d, 4, false)
+	return f, d
 }
