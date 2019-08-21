@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/azhai/gozzo-pck/find"
 	"github.com/azhai/gozzo-utils/common"
+	"github.com/azhai/gozzo-utils/filesystem"
 )
 
 type ISP = uint8
@@ -57,28 +57,36 @@ func Phone2Bin(phone string) []byte {
 }
 
 func ReadMobFile(fdir string) (records []string, keypairs []find.KeyPair, err error) {
-	var lines []string
 	// 较小的文件使用ReadLines
 	fpath := filepath.Join(fdir, "city.txt")
-	if lines, err = common.ReadLines(fpath); err != nil {
+	lines, err := filesystem.ReadLines(fpath)
+	if err != nil {
 		return
 	}
 	for _, line := range lines {
+		if len(line) == 0 {
+			continue
+		}
 		ps := strings.SplitN(line, "\t", 2)
 		if len(ps) < 2 {
-			fmt.Println(line)
 			continue
 		}
 		records = append(records, ps[1])
 	}
-	// 较大的文件使用ReadFileTo
+	// 较大的文件使用LineReader
 	fpath = filepath.Join(fdir, "phone.txt")
-	output := make(chan []byte)
-	go common.ReadFileTo(fpath, bufio.ScanLines, output)
-	for line := range output {
-		ps := strings.SplitN(string(line), "\t", 3)
+	reader := filesystem.NewLineReader(fpath)
+	defer reader.Close()
+	if reader.Err() != nil {
+		return
+	}
+	for reader.Reading() {
+		line := reader.Text()
+		if len(line) == 0 {
+			continue
+		}
+		ps := strings.SplitN(line, "\t", 3)
 		if len(ps) < 3 {
-			fmt.Println(string(line))
 			continue
 		}
 		n, _ := strconv.Atoi(ps[2])
@@ -94,7 +102,7 @@ type MobFinder struct {
 
 func NewMobFinder(fdir string) *MobFinder {
 	fpath := filepath.Join(fdir, MOB_DAT_FILE)
-	fp, size, err := common.OpenFile(fpath, false, false)
+	fp, size, err := filesystem.OpenFile(fpath, false, false)
 	if err != nil {
 		fmt.Println(err)
 		return nil
