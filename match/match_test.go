@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"strconv"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 var data = []byte("\nvalue\r\n" +
@@ -35,25 +37,26 @@ func TestInclusio(t *testing.T) {
 	outch := make(chan []byte)
 	go func() {
 		for chunk := range outch {
+			assert.Equal(t, byte('*'), chunk[0])
+			tail := chunk[len(chunk)-1]
+			assert.Equal(t, byte('*'), tail)
 			t.Log(strconv.Quote(string(chunk)))
 		}
 	}()
 	sp := NewSplitMatcher([]byte("*"), []byte("*"))
 	err := sp.SplitStream(outch, bytes.NewReader(data))
-	if err != nil {
-		t.Error(err)
-	}
+	assert.NoError(t, err)
 }
 
 // 测试切割出完整的包
 func TestBetween(t *testing.T) {
 	sp := NewSplitMatcher([]byte("*"), []byte("\r\n"))
 	output, err := sp.SplitBuffer(data)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	assert.NoError(t, err)
 	for _, chunk := range output {
+		assert.Equal(t, byte('*'), chunk[0])
+		tail := chunk[len(chunk)-2:]
+		assert.Equal(t, []byte("\r\n"), tail)
 		t.Log(strconv.Quote(string(chunk)))
 	}
 }
@@ -62,13 +65,16 @@ func TestBetween(t *testing.T) {
 func TestMatch(t *testing.T) {
 	sp := NewSplitMatcher([]byte("*"), []byte("\r\n"))
 	output, err := sp.SplitBuffer(data)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	for _, chunk := range output {
+	assert.NoError(t, err)
+	assert.Len(t, output, 3)
+	for i, chunk := range output {
 		fm := CreateFieldMatcher(chunk)
 		cmd := MatchChunk(chunk, fm)
+		if i == 1 {
+			assert.Equal(t, "HSET", cmd)
+		} else {
+			assert.Equal(t, "SET", cmd)
+		}
 		t.Log(cmd)
 	}
 }
@@ -84,10 +90,7 @@ func BenchmarkMatch(b *testing.B) {
 	var fms []*FieldMatcher
 	sp := NewSplitMatcher([]byte("*"), []byte("\r\n"))
 	output, err := sp.SplitBuffer(data)
-	if err != nil {
-		b.Error(err)
-		return
-	}
+	assert.NoError(b, err)
 	for _, chunk := range output {
 		fms = append(fms, CreateFieldMatcher(chunk))
 	}
