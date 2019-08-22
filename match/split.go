@@ -106,8 +106,11 @@ func SplitAfter(match MatchFunc) bufio.SplitFunc {
 		if i >= 0 {
 			return i + m, data[:i+m], nil
 		}
-		// ErrFinalToken，保留不完整或空数据
-		return 0, data, bufio.ErrFinalToken
+		var err error
+		if atEOF {
+			err = bufio.ErrFinalToken
+		}
+		return 0, nil, err
 	}
 }
 
@@ -152,42 +155,35 @@ func SplitBetween(matchStart, matchEnd MatchFunc) bufio.SplitFunc {
 
 // 按定长（可选定时）分拆
 type FixedSplitCreator struct {
-	ByteSize    int
-	MilliSecond int64
+	ByteSize int
+	Interval time.Duration
 }
 
 func NewFixedSplitCreator(size int, msec int64) *FixedSplitCreator {
-	return &FixedSplitCreator{ByteSize: size, MilliSecond: msec}
+	return &FixedSplitCreator{
+		ByteSize: size,
+		Interval: time.Duration(msec) * time.Millisecond,
+	}
 }
 
 func (m *FixedSplitCreator) GetSplit() bufio.SplitFunc {
-	tick := m.GetTimeTick() // Interval时间通道，可能为nil
 	return func(data []byte, atEOF bool) (int, []byte, error) {
-		var advance int
-		select {
-		default:
-			if len(data) >= m.ByteSize {
-				advance = m.ByteSize
-			}
-		case <- tick:
-			advance = len(data)
-			if advance >= m.ByteSize {
-				advance = m.ByteSize
+		timer := time.NewTimer(m.Interval)
+		for {
+			select {
+			default:
+				if len(data) >= m.ByteSize {
+					timer.Stop()
+					return m.ByteSize, data[:m.ByteSize], nil
+				}
+				if atEOF { // ErrFinalToken，最后一段数据长度不够也可以结束
+					return len(data), data, bufio.ErrFinalToken
+				}
+				return 0, nil, nil
+			case <- timer.C:
+				timer.Reset(m.Interval)
+				return len(data), data, nil
 			}
 		}
-		if advance > 0 {
-			return advance, data[:advance], nil
-		}
-		// ErrFinalToken，最后一段数据长度不够也可以结束
-		// 反而如果长度刚好，最后可能会多出一个空字符串
-		return len(data), data, bufio.ErrFinalToken
 	}
-}
-
-func (m *FixedSplitCreator) GetTimeTick() <-chan time.Time {
-	if m.MilliSecond > 0 {
-		msec := time.Duration(m.MilliSecond)
-		return time.Tick(msec * time.Millisecond)
-	}
-	return nil
 }
