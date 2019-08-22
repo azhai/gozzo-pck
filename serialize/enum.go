@@ -8,12 +8,13 @@ import (
 
 // 枚举选项
 type Options struct {
-	values  []byte
-	remarks []string
+	values     []byte
+	remarks    []string
+	isZeroBase bool // index和value的值相等（类型不同）
 }
 
 func NewOptions(remarks []string) *Options {
-	opts := &Options{remarks: remarks}
+	opts := &Options{remarks: remarks, isZeroBase: true}
 	for i := 0; i < len(opts.remarks); i++ {
 		opts.values = append(opts.values, byte(i))
 	}
@@ -52,6 +53,9 @@ func (t *Options) Search(v byte) int {
 }
 
 func (t *Options) ByValue(v byte) int {
+	if t.isZeroBase {
+		return int(v)
+	}
 	if i := t.Search(v); i >= 0 && i < t.Size() {
 		if t.values[i] == v {
 			return i

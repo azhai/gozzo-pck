@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -10,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/azhai/gozzo-pck/find"
+	"github.com/azhai/gozzo-pck/serialize"
 	"github.com/azhai/gozzo-utils/common"
 	"github.com/azhai/gozzo-utils/filesystem"
 )
@@ -20,39 +20,34 @@ const (
 	MOB_DAT_FILE = "phone.dat"
 	MOB_KEY_SIZE = 4
 	MOB_POS_SIZE = 2
-)
-const (
-	Unknow ISP = uint8(iota)
+	PHONE_SIZE   = 7 // 手机号前7位就可识别归属地
+	// 运营商
+	Unknow ISP = uint8(iota) // 未知
 	ChnTelecom
 	ChnMobile
 	ChnUnicom
 )
 
 var (
-	IspArray = []string{"未知", "中国电信", "中国移动", "中国联通"}
+	ChinaISP = serialize.NewOptions([]string{"未知", "中国电信", "中国移动", "中国联通"})
 	finder   = NewMobFinder("data/")
 )
 
 func Mob2Bin(phone, ispName string) []byte {
-	switch ispName {
-	default:
-		phone += string(Unknow + '0')
-	case IspArray[int(ChnTelecom)]:
-		phone += string(ChnTelecom + '0')
-	case IspArray[int(ChnMobile)]:
-		phone += string(ChnMobile + '0')
-	case IspArray[int(ChnUnicom)]:
-		phone += string(ChnUnicom + '0')
+	code := Unknow
+	i := ChinaISP.ByRemark(ispName, false)
+	if i >= 0 {
+		code, _ = ChinaISP.Item(i)
 	}
-	data, _ := hex.DecodeString(phone)
-	return data
+	tail := string(code + '0')
+	return common.Hex2Bin(phone[:PHONE_SIZE] + tail)
 }
 
 func Phone2Bin(phone string) []byte {
-	if size := len(phone); size < 7 {
-		phone = phone + strings.Repeat("0", 7-size)
+	if size := len(phone); size < PHONE_SIZE {
+		phone = phone + strings.Repeat("0", PHONE_SIZE-size)
 	}
-	phone = phone[:7] + "9" //最大运营商代码
+	phone = phone[:PHONE_SIZE] + "9" //最大运营商代码
 	return common.Hex2Bin(phone)
 }
 
@@ -127,8 +122,8 @@ func (f *MobFinder) Find(phone string) (area, isp string, err error) {
 	data, err := f.GetRecord(addr)
 	if err == nil {
 		area = string(data)
-		x := uint(key[len(key)-1] & 0x0f)
-		isp = IspArray[int(x)]
+		x := key[len(key)-1] & 0x0f
+		_, isp = ChinaISP.Item(ChinaISP.ByValue(x))
 	}
 	return
 }

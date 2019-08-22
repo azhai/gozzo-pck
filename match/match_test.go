@@ -24,6 +24,10 @@ func CreateFieldMatcher(chunk []byte) *FieldMatcher {
 	return m
 }
 
+func CreateSplitMatcher(start, end []byte) *SplitMatcher {
+	return NewSplitMatcher(NewSplitCreator(start, end).GetSplit())
+}
+
 func MatchChunk(chunk []byte, fm *FieldMatcher) (cmd string) {
 	data := fm.Match(chunk, true)
 	if len(data) >= 7 {
@@ -32,8 +36,8 @@ func MatchChunk(chunk []byte, fm *FieldMatcher) (cmd string) {
 	return
 }
 
-// 测试切割出完整的包
-func TestInclusio(t *testing.T) {
+// 测试相同的开头和结尾标记分割
+func TestSplitBoth(t *testing.T) {
 	outch := make(chan []byte)
 	go func() {
 		for chunk := range outch {
@@ -43,16 +47,17 @@ func TestInclusio(t *testing.T) {
 			t.Log(strconv.Quote(string(chunk)))
 		}
 	}()
-	sp := NewSplitMatcher([]byte("*"), []byte("*"))
-	err := sp.SplitStream(outch, bytes.NewReader(data))
+	sp := CreateSplitMatcher([]byte("*"), []byte("*"))
+	err := sp.SplitStream(bytes.NewReader(data), outch)
 	assert.NoError(t, err)
 }
 
 // 测试切割出完整的包
-func TestBetween(t *testing.T) {
-	sp := NewSplitMatcher([]byte("*"), []byte("\r\n"))
+func TestSplitBetween(t *testing.T) {
+	sp := CreateSplitMatcher([]byte("*"), []byte("\r\n"))
 	output, err := sp.SplitBuffer(data)
 	assert.NoError(t, err)
+	assert.Len(t, output, 3)
 	for _, chunk := range output {
 		assert.Equal(t, byte('*'), chunk[0])
 		tail := chunk[len(chunk)-2:]
@@ -61,9 +66,38 @@ func TestBetween(t *testing.T) {
 	}
 }
 
+// 测试根据结尾标记分割
+func TestSplitAfter(t *testing.T) {
+	sp := CreateSplitMatcher(nil, []byte("\r\n"))
+	output, err := sp.SplitBuffer(data)
+	assert.NoError(t, err)
+	assert.Len(t, output, 23)
+	for i, chunk := range output {
+		if i < 22 {
+			tail := chunk[len(chunk)-2:]
+			assert.Equal(t, []byte("\r\n"), tail)
+		}
+		t.Log(strconv.Quote(string(chunk)))
+	}
+}
+
+// 测试根据定长分割
+func TestSplitFixed(t *testing.T) {
+	sp := NewSplitMatcher(NewFixedSplitCreator(16, 0).GetSplit())
+	output, err := sp.SplitBuffer(data)
+	assert.NoError(t, err)
+	assert.True(t, len(output) == 6 || len(output) == 7)
+	for i, chunk := range output {
+		if i < 6 {
+			assert.Len(t, chunk, 16)
+		}
+		t.Log(strconv.Quote(string(chunk)))
+	}
+}
+
 // 测试切割出完整的包
 func TestMatch(t *testing.T) {
-	sp := NewSplitMatcher([]byte("*"), []byte("\r\n"))
+	sp := CreateSplitMatcher([]byte("*"), []byte("\r\n"))
 	output, err := sp.SplitBuffer(data)
 	assert.NoError(t, err)
 	assert.Len(t, output, 3)
@@ -80,7 +114,7 @@ func TestMatch(t *testing.T) {
 }
 
 func BenchmarkSplit(b *testing.B) {
-	sp := NewSplitMatcher([]byte("*"), []byte("\r\n"))
+	sp := CreateSplitMatcher([]byte("*"), []byte("\r\n"))
 	for i := 0; i < b.N; i++ {
 		sp.SplitBuffer(data)
 	}
@@ -88,7 +122,7 @@ func BenchmarkSplit(b *testing.B) {
 
 func BenchmarkMatch(b *testing.B) {
 	var fms []*FieldMatcher
-	sp := NewSplitMatcher([]byte("*"), []byte("\r\n"))
+	sp := CreateSplitMatcher([]byte("*"), []byte("\r\n"))
 	output, err := sp.SplitBuffer(data)
 	assert.NoError(b, err)
 	for _, chunk := range output {

@@ -3,29 +3,27 @@ package main
 import (
 	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func FindPhoneTest(t *testing.T, phone string) {
-	area, isp, err := finder.Find(phone)
-	if err != nil {
-		t.Fatal("没有找到数据")
-	}
-	t.Log(phone, isp)
-	t.Log(area)
-}
-
 func TestFindPhone(t *testing.T) {
-	FindPhoneTest(t, "15999558910123123213213")
-	FindPhoneTest(t, "1300")
-	FindPhoneTest(t, "1703576")
-	FindPhoneTest(t, "199997922323")
+	phones := []string{
+		"15999558910123123213213",
+		"1300",
+		"1703576",
+		"199997922323"}
+	for _, phone := range phones {
+		area, isp, err := finder.Find(phone)
+		assert.NoError(t, err)
+		t.Log(phone, isp)
+		t.Log(area)
+	}
 }
 
 func TestFindError(t *testing.T) {
 	_, _, err := finder.Find("afsd32323")
-	if err == nil {
-		t.Fatal("错误的结果")
-	}
+	assert.Error(t, err, "错误的结果")
 	t.Log(err)
 }
 
@@ -36,9 +34,7 @@ func BenchmarkFindPhone(b *testing.B) {
 			i++
 			phone := fmt.Sprintf("%s%d%s", "1897", i&10000, "45")
 			_, _, err := finder.Find(phone)
-			if err != nil {
-				b.Fatal(err)
-			}
+			assert.NoError(b, err)
 		}
 	})
 }
