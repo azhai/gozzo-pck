@@ -14,8 +14,8 @@ var (
 		"0000000c000301c905250741c82b00030000011c1907200402470104000000fa" +
 		"2a02000030011831010c57080000000000000000fb0100fc02000afd0209b5fe" +
 		"143839383630343132313031393931303233313532ff020001917e"
-	reply808 = "7e8001000508203508566700080007020003ae7e"
-	remarks = []string{"成功/确认", "失败", "消息有误", "不支持", "报警处理确认"}
+	reply808         = "7e8001000508203508566700080007020003ae7e"
+	remarks          = []string{"成功/确认", "失败", "消息有误", "不支持", "报警处理确认"}
 	xdim, ydim int64 = -1234, -567788
 )
 
@@ -40,14 +40,14 @@ func BlockCheck(block []byte) byte {
 
 // JT/T808协议外层
 type Proto808 struct {
-	Head   byte    // 消息头
-	Code   string  // 命令ID
-	Props  uint16  // 属性，不加密不分包时即消息体长度
-	Mobile string  // SIM卡号
-	Seqno  uint16  // 流水号
-	Rest   []byte  // 消息体（字段名称固定不可改），暂不解析，只获得原始字节
-	Check  byte    // 检验码
-	Tail   byte    // 消息尾
+	Head   byte   // 消息头
+	Code   string // 命令ID
+	Props  uint16 // 属性，不加密不分包时即消息体长度
+	Mobile string // SIM卡号
+	Seqno  uint16 // 流水号
+	Rest   []byte // 消息体（字段名称固定不可改），暂不解析，只获得原始字节
+	Check  byte   // 检验码
+	Tail   byte   // 消息尾
 	*Object
 }
 
@@ -100,10 +100,10 @@ func TestProto808(t *testing.T) {
 
 // JT/T808协议，平台通用回复消息体
 type BodyReply struct {
-	Seqno  uint16  // 原消息的流水号
-	Code   string  // 原消息的命令ID
-	Status byte
-	StatusEnum *Enum   // 结果 0:成功/确认；1:失败；2:消息有误；3:不支持；4:报警处理确认
+	Seqno      uint16 // 原消息的流水号
+	Code       string // 原消息的命令ID
+	Status     byte
+	StatusEnum *Enum // 结果 0:成功/确认；1:失败；2:消息有误；3:不支持；4:报警处理确认
 	*Object
 }
 
@@ -131,11 +131,11 @@ func _testBodyReply(t *testing.T, body []byte) {
 }
 
 type BodyComplex struct {
-	Point  *TwoDim
-	Now  time.Time
+	Point     *TwoDim
+	Now       time.Time
 	NowStamp  *TimeStamp
-	Today  time.Time
-	TodayDate  *Date
+	Today     time.Time
+	TodayDate *Date
 	*Object
 }
 
@@ -164,8 +164,8 @@ func TestComplex(t *testing.T) {
 	err := Unserialize(body, c)
 	assert.NoError(t, err)
 	assert.Equal(t, QuadrantThird, c.Point.Quadrant)
-	assert.Equal(t, uint64(0 - xdim), c.Point.Xdim)
-	assert.Equal(t, uint64(0 - ydim), c.Point.Ydim)
+	assert.Equal(t, uint64(0-xdim), c.Point.Xdim)
+	assert.Equal(t, uint64(0-ydim), c.Point.Ydim)
 	assert.Equal(t, now.Unix(), c.Now.Unix())
 	assert.Equal(t, common.ToDate(now).Unix(), c.Today.Unix())
 	t.Logf("%+v\n", c)

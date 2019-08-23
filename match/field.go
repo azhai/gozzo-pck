@@ -41,7 +41,6 @@ func (field *Field) GetRange(offset int) (int, int) {
 	return start, stop
 }
 
-
 //分段匹配
 type FieldMatcher struct {
 	rest     *Field //未识别部分，可作为payload创建新包

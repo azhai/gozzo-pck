@@ -131,7 +131,7 @@ func (t *Object) AddEnumField(name string, opts *Options) (*match.Field, *Enum) 
 
 func (t *Object) AddTwoDimField(name string, size int, x, y int64) (*match.Field, *TwoDim) {
 	td := NewTwoDimXY(size, x, y)
-	f := t.AddFixedChild(name, td, td.Size * 2, false)
+	f := t.AddFixedChild(name, td, td.Size*2, false)
 	return f, td
 }
 

@@ -17,7 +17,7 @@ func (n Byte) Encode(v interface{}) []byte {
 func (n Byte) Decode(chunk []byte) interface{} {
 	v := byte(0x00)
 	if chunk != nil {
-		v = chunk[len(chunk) - 1]
+		v = chunk[len(chunk)-1]
 	}
 	return v
 }

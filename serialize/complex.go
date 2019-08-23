@@ -20,7 +20,7 @@ const (
 // 二维数据(双整型)，可用于复数、平面中的点、经纬度坐标（先转为Decimal）
 type TwoDim struct {
 	Xdim, Ydim uint64
-	Quadrant int
+	Quadrant   int
 	*Unsigned
 }
 

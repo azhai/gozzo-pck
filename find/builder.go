@@ -36,18 +36,18 @@ type DatHeader struct {
 	KeySize   int
 	PositSize int
 	IdxBegin  uint32
-	IdxEnd  uint32
+	IdxEnd    uint32
 	KeyCount  uint32
 	SizeProps uint16
-	Version string
+	Version   string
 	*serialize.Object
 }
 
 func NewDatHeader(keySize, positSize int) *DatHeader {
 	p := &DatHeader{
-		KeySize: keySize,
+		KeySize:   keySize,
 		PositSize: positSize,
-		Object: serialize.NewObject(),
+		Object:    serialize.NewObject(),
 	}
 	p.AddUintField("idxBegin", 4) // 第一个索引开始位置
 	p.AddUintField("idxEnd", 4)   // 最后一个索引结束位置

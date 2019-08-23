@@ -83,12 +83,12 @@ func (t *Options) ByRemark(r string, caseSensitive bool) int {
 
 // 枚举类型
 type Enum struct {
-	Opts  *Options
+	Opts *Options
 	Byte // opts的索引，范围0~255
 }
 
 func NewEnum(opts *Options) *Enum {
-	return &Enum{Opts:opts, Byte:Byte(0)}
+	return &Enum{Opts: opts, Byte: Byte(0)}
 }
 
 func (m Enum) GetIndex() int {
@@ -117,4 +117,3 @@ func (m *Enum) Decode(chunk []byte) interface{} {
 	m.Byte = Byte(b)
 	return b
 }
-

@@ -32,14 +32,14 @@ func (m *SplitMatcher) Scanning(rd io.Reader, write func(data []byte)) error {
 
 // 解析字节流
 func (m *SplitMatcher) SplitStream(rd io.Reader, outch chan<- []byte) error {
-	return m.Scanning(rd, func(data []byte){
+	return m.Scanning(rd, func(data []byte) {
 		outch <- data
 	})
 }
 
 // 解析二进制数据
 func (m *SplitMatcher) SplitBuffer(input []byte) (output [][]byte, err error) {
-	err = m.Scanning(bytes.NewReader(input), func(data []byte){
+	err = m.Scanning(bytes.NewReader(input), func(data []byte) {
 		output = append(output, data)
 	})
 	return
