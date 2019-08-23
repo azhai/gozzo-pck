@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"time"
 )
 
 // 判断匹配开头或结尾的方法
@@ -20,30 +19,30 @@ func NewSplitMatcher(split bufio.SplitFunc) *SplitMatcher {
 }
 
 // 解析字节流
-func (m *SplitMatcher) SplitStream(rd io.Reader, outch chan<- []byte) error {
+func (m *SplitMatcher) Scanning(rd io.Reader, write func(data []byte)) error {
 	scanner := bufio.NewScanner(rd)
 	scanner.Split(m.split)
 	for scanner.Scan() {
 		if chunk := scanner.Bytes(); chunk != nil {
-			outch <- chunk
+			write(chunk)
 		}
 	}
 	return scanner.Err()
 }
 
+// 解析字节流
+func (m *SplitMatcher) SplitStream(rd io.Reader, outch chan<- []byte) error {
+	return m.Scanning(rd, func(data []byte){
+		outch <- data
+	})
+}
+
 // 解析二进制数据
-func (m *SplitMatcher) SplitBuffer(input []byte) ([][]byte, error) {
-	var output [][]byte
-	rd := bytes.NewReader(input)
-	outch := make(chan []byte)
-	go func() {
-		defer close(outch)
-		for chunk := range outch {
-			output = append(output, chunk)
-		}
-	}()
-	err := m.SplitStream(rd, outch)
-	return output, err
+func (m *SplitMatcher) SplitBuffer(input []byte) (output [][]byte, err error) {
+	err = m.Scanning(bytes.NewReader(input), func(data []byte){
+		output = append(output, data)
+	})
+	return
 }
 
 // 按前后标记分拆
@@ -102,15 +101,11 @@ func MatchTwice(match MatchFunc, data []byte, atEOF bool) (int, int, int) {
 // 根据结尾分割，但是从前向后搜索
 func SplitAfter(match MatchFunc) bufio.SplitFunc {
 	return func(data []byte, atEOF bool) (int, []byte, error) {
-		i, m := match(data)
-		if i >= 0 {
-			return i + m, data[:i+m], nil
+		if i, m := match(data); i >= 0 {
+			advance := i + m
+			return advance, data[:advance], nil
 		}
-		var err error
-		if atEOF {
-			err = bufio.ErrFinalToken
-		}
-		return 0, nil, err
+		return len(data), nil, nil
 	}
 }
 
@@ -119,7 +114,7 @@ func SplitBoth(match MatchFunc) bufio.SplitFunc {
 	return func(data []byte, atEOF bool) (int, []byte, error) {
 		advance, i, m := MatchTwice(match, data, atEOF)
 		if advance < 0 {
-			return 0, nil, nil // 终止(atEOF=true)或请求更多数据
+			return 0, nil, nil
 		}
 		var token []byte
 		if advance > i {
@@ -135,7 +130,7 @@ func SplitBetween(matchStart, matchEnd MatchFunc) bufio.SplitFunc {
 	return func(data []byte, atEOF bool) (int, []byte, error) {
 		advance, i, m := MatchTwice(matchStart, data, atEOF)
 		if advance < 0 {
-			return 0, nil, nil // 终止(atEOF=true)或请求更多数据
+			return 0, nil, nil
 		}
 		var token []byte
 		if advance > i {
@@ -153,37 +148,28 @@ func SplitBetween(matchStart, matchEnd MatchFunc) bufio.SplitFunc {
 	}
 }
 
-// 按定长（可选定时）分拆
+// 按定长分拆
 type FixedSplitCreator struct {
 	ByteSize int
-	Interval time.Duration
 }
 
-func NewFixedSplitCreator(size int, msec int64) *FixedSplitCreator {
-	return &FixedSplitCreator{
-		ByteSize: size,
-		Interval: time.Duration(msec) * time.Millisecond,
-	}
+func NewFixedSplitCreator(size int) *FixedSplitCreator {
+	return &FixedSplitCreator{ByteSize: size}
 }
 
 func (m *FixedSplitCreator) GetSplit() bufio.SplitFunc {
 	return func(data []byte, atEOF bool) (int, []byte, error) {
-		timer := time.NewTimer(m.Interval)
-		for {
-			select {
-			default:
-				if len(data) >= m.ByteSize {
-					timer.Stop()
-					return m.ByteSize, data[:m.ByteSize], nil
-				}
-				if atEOF { // ErrFinalToken，最后一段数据长度不够也可以结束
-					return len(data), data, bufio.ErrFinalToken
-				}
-				return 0, nil, nil
-			case <- timer.C:
-				timer.Reset(m.Interval)
-				return len(data), data, nil
-			}
+		if atEOF && len(data) == 0 {
+			return 0, nil, nil
 		}
+		if len(data) >= m.ByteSize {
+			return m.ByteSize, data[:m.ByteSize], nil
+		}
+		var err error
+		if atEOF {
+			// ErrFinalToken，最后一段数据长度不够也可以结束
+			err = bufio.ErrFinalToken
+		}
+		return len(data), data, err
 	}
 }

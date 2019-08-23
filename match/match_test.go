@@ -81,7 +81,7 @@ func TestSplitAfter(t *testing.T) {
 
 // 测试根据定长分割
 func TestSplitFixed(t *testing.T) {
-	sp := NewSplitMatcher(NewFixedSplitCreator(17, 0).GetSplit())
+	sp := NewSplitMatcher(NewFixedSplitCreator(17).GetSplit())
 	output, err := sp.SplitBuffer(data)
 	assert.NoError(t, err)
 	assert.Len(t, output, 6)
@@ -98,7 +98,7 @@ func TestMatch(t *testing.T) {
 	sp := CreateSplitMatcher([]byte("*"), []byte("\r\n"))
 	output, err := sp.SplitBuffer(data)
 	assert.NoError(t, err)
-	//assert.Len(t, output, 3)
+	assert.Len(t, output, 3)
 	for i, chunk := range output {
 		fm := CreateFieldMatcher(chunk)
 		cmd := MatchChunk(chunk, fm)
