@@ -31,8 +31,11 @@ func Serialize(s ISerializer) []byte {
 	return s.GetMatcher().Build(data)
 }
 
-func Unserialize(chunk []byte, s ISerializer) (err error) {
-	data := s.GetMatcher().Match(chunk, true)
+func Unserialize(chunk []byte, s ISerializer) error {
+	data, err := s.GetMatcher().Match(chunk, true)
+	if err != nil {
+		return err
+	}
 	rv := reflect.Indirect(reflect.ValueOf(s))
 	var val interface{}
 	for name, prop := range s.GetNames() {
@@ -48,7 +51,7 @@ func Unserialize(chunk []byte, s ISerializer) (err error) {
 		}
 		rf.Set(reflect.ValueOf(val))
 	}
-	return
+	return nil
 }
 
 // 对象

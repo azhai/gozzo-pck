@@ -128,9 +128,14 @@ func (m *FieldMatcher) GetLeastSize() (int, int) {
 }
 
 // 按字节位置匹配
-func (m *FieldMatcher) Match(chunk []byte, withRest bool) map[string][]byte {
-	var data = make(map[string][]byte)
-	start, stop, size := 0, 0, len(chunk)
+func (m *FieldMatcher) Match(chunk []byte, withRest bool) (map[string][]byte, error) {
+	size := len(chunk)
+	if _, least := m.GetLeastSize(); size < least {
+		tpl := "The length of data is %d, little than %d"
+		return nil, fmt.Errorf(tpl, size, least)
+	}
+	start, stop := 0, 0
+	data := make(map[string][]byte)
 	for name, field := range m.fields {
 		start, stop = field.GetRange(0) // 一定不为负
 		data[name] = common.GetSlice(chunk, start, stop, size)
@@ -139,7 +144,7 @@ func (m *FieldMatcher) Match(chunk []byte, withRest bool) map[string][]byte {
 		start, stop = m.rest.GetRange(0) // 一定不为负
 		data["rest"] = common.GetSlice(chunk, start, stop, size)
 	}
-	return data
+	return data, nil
 }
 
 // 放到对应位置组装

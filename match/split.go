@@ -19,22 +19,28 @@ func NewSplitMatcher(split bufio.SplitFunc) *SplitMatcher {
 }
 
 // 解析字节流
-func (m *SplitMatcher) Scanning(rd io.Reader, write func(data []byte)) error {
+func (m *SplitMatcher) Scanning(rd io.Reader, write func(data []byte)) (err error) {
 	scanner := bufio.NewScanner(rd)
 	scanner.Split(m.split)
+	defer func() {
+		if err, _ = recover().(error); err == nil {
+			err = scanner.Err()
+		}
+	}()
 	for scanner.Scan() {
 		if chunk := scanner.Bytes(); chunk != nil {
 			write(chunk)
 		}
 	}
-	return scanner.Err()
+	return
 }
 
 // 解析字节流
-func (m *SplitMatcher) SplitStream(rd io.Reader, outch chan<- []byte) error {
-	return m.Scanning(rd, func(data []byte) {
+func (m *SplitMatcher) SplitStream(rd io.Reader, outch chan<- []byte) (err error) {
+	err = m.Scanning(rd, func(data []byte) {
 		outch <- data
 	})
+	return
 }
 
 // 解析二进制数据
@@ -55,7 +61,7 @@ func NewSplitCreator(start, end []byte) *SplitCreator {
 	return &SplitCreator{StartToken: start, EndToken: end}
 }
 
-func (m *SplitCreator) GetSplit() bufio.SplitFunc {
+func (m SplitCreator) GetSplit() bufio.SplitFunc {
 	// 只有结尾标记
 	if m.StartToken == nil {
 		return SplitAfter(CreateMatchForward(m.EndToken))
@@ -157,7 +163,7 @@ func NewFixedSplitCreator(size int) *FixedSplitCreator {
 	return &FixedSplitCreator{ByteSize: size}
 }
 
-func (m *FixedSplitCreator) GetSplit() bufio.SplitFunc {
+func (m FixedSplitCreator) GetSplit() bufio.SplitFunc {
 	return func(data []byte, atEOF bool) (int, []byte, error) {
 		if atEOF && len(data) == 0 {
 			return 0, nil, nil
